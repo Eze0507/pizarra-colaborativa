@@ -1,0 +1,67 @@
+<div class="auth-card">
+  <div class="auth-header">
+    <img src="/NodoBoardOficial.png" alt="NodoBoard Logo" class="auth-logo" />
+    <h1 class="auth-title">Iniciar Sesión</h1>
+    <p class="auth-subtitle">Herramienta CASE de Diseño de Datos</p>
+  </div>
+
+  <div *ngIf="successMessage" class="alert alert-success">
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="errorMessage" class="alert alert-error">
+    {{ errorMessage }}
+  </div>
+
+  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form" novalidate>
+    <div class="form-group">
+      <label for="username" class="form-label">Nombre de usuario</label>
+      <input
+        id="username"
+        type="text"
+        formControlName="username"
+        class="form-input"
+        placeholder="Ingrese su nombre de usuario"
+        autocomplete="username"
+      />
+      <div *ngIf="loginForm.get('username')?.touched && loginForm.get('username')?.errors?.['required']" class="field-error">
+        El nombre de usuario es obligatorio.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password" class="form-label">Contraseña</label>
+      <input
+        id="password"
+        type="password"
+        formControlName="password"
+        class="form-input"
+        placeholder="Ingrese su contraseña"
+        autocomplete="current-password"
+      />
+      <div *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.errors?.['required']" class="field-error">
+        La contraseña es obligatoria.
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="isLoading"
+      >
+        <span *ngIf="!isLoading">Iniciar sesión</span>
+        <span *ngIf="isLoading">Iniciando...</span>
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="goToRegister()"
+        [disabled]="isLoading"
+      >
+        Crear cuenta
+      </button>
+    </div>
+  </form>
+</div>

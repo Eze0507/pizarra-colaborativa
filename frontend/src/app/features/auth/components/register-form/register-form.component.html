@@ -1,0 +1,116 @@
+<div class="auth-card">
+  <div class="auth-header">
+    <img src="/NodoBoardOficial.png" alt="NodoBoard Logo" class="auth-logo" />
+    <h1 class="auth-title">Crear Cuenta</h1>
+    <p class="auth-subtitle">Regístrese para acceder a la pizarra colaborativa</p>
+  </div>
+
+  <div *ngIf="errorMessage" class="alert alert-error">
+    {{ errorMessage }}
+  </div>
+
+  <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="auth-form" novalidate>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="first_name" class="form-label">Nombre</label>
+        <input
+          id="first_name"
+          type="text"
+          formControlName="first_name"
+          class="form-input"
+          placeholder="Ej. Juan"
+          autocomplete="given-name"
+        />
+        <div *ngIf="registerForm.get('first_name')?.touched && registerForm.get('first_name')?.errors?.['required']" class="field-error">
+          El nombre es obligatorio.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="last_name" class="form-label">Apellido</label>
+        <input
+          id="last_name"
+          type="text"
+          formControlName="last_name"
+          class="form-input"
+          placeholder="Ej. Pérez"
+          autocomplete="family-name"
+        />
+        <div *ngIf="registerForm.get('last_name')?.touched && registerForm.get('last_name')?.errors?.['required']" class="field-error">
+          El apellido es obligatorio.
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email" class="form-label">Correo Electrónico</label>
+      <input
+        id="email"
+        type="email"
+        formControlName="email"
+        class="form-input"
+        placeholder="usuario@ejemplo.com"
+        autocomplete="email"
+      />
+      <div *ngIf="registerForm.get('email')?.touched && registerForm.get('email')?.errors?.['required']" class="field-error">
+        El correo es obligatorio.
+      </div>
+      <div *ngIf="registerForm.get('email')?.touched && registerForm.get('email')?.errors?.['email']" class="field-error">
+        Ingrese un correo electrónico válido.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="username" class="form-label">Nombre de Usuario</label>
+      <input
+        id="username"
+        type="text"
+        formControlName="username"
+        class="form-input"
+        placeholder="Ej. juanperez"
+        autocomplete="username"
+      />
+      <div *ngIf="registerForm.get('username')?.touched && registerForm.get('username')?.errors?.['required']" class="field-error">
+        El nombre de usuario es obligatorio.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password" class="form-label">Contraseña (Mínimo 8 caracteres)</label>
+      <input
+        id="password"
+        type="password"
+        formControlName="password"
+        class="form-input"
+        placeholder="••••••••"
+        autocomplete="new-password"
+      />
+      <div *ngIf="registerForm.get('password')?.touched && registerForm.get('password')?.errors?.['required']" class="field-error">
+        La contraseña es obligatoria.
+      </div>
+      <div *ngIf="registerForm.get('password')?.touched && registerForm.get('password')?.errors?.['minlength']" class="field-error">
+        La contraseña debe tener al menos 8 caracteres.
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="isLoading"
+      >
+        <span *ngIf="!isLoading">Registrar</span>
+        <span *ngIf="isLoading">Registrando...</span>
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="onCancel()"
+        [disabled]="isLoading"
+      >
+        Cancelar
+      </button>
+    </div>
+  </form>
+</div>
