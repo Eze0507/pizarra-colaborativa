@@ -7,7 +7,9 @@ from .serializers import (
     CustomTokenObtainPairSerializer,
     LogoutSerializer,
     UserRegisterSerializer,
+    ActivateAccountSerializer,
 )
+
 
 
 class RegisterView(generics.CreateAPIView):
@@ -23,7 +25,7 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response({
-            "detail": "Usuario registrado exitosamente.",
+            "detail": "Usuario registrado exitosamente. Se ha enviado un correo para activar su cuenta.",
             "user": {
                 "id": user.id,
                 "username": user.username,
@@ -32,6 +34,23 @@ class RegisterView(generics.CreateAPIView):
                 "last_name": user.last_name,
             }
         }, status=status.HTTP_201_CREATED)
+
+
+class ActivateAccountView(APIView):
+    """
+    Endpoint para activar la cuenta de usuario mediante el token recibido por correo.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ActivateAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"detail": "Cuenta activada exitosamente. Ya puedes iniciar sesión."},
+            status=status.HTTP_200_OK
+        )
+
 
 
 

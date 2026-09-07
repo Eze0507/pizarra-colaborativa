@@ -1,4 +1,7 @@
+from django.conf import settings
 from django.contrib.auth.models import User
+from django.core import signing
+from django.core.mail import send_mail
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -25,7 +28,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        try:
+            data = super().validate(attrs)
+        except Exception as e:
+            username = attrs.get(self.username_field)
+            password = attrs.get('password')
+            user = User.objects.filter(username=username).first()
+            if user and user.check_password(password) and not user.is_active:
+                raise serializers.ValidationError({
+                    'detail': 'Tu cuenta no está activada. Por favor revisa tu correo electrónico para activarla.'
+                })
+            raise e
 
         # Datos adicionales del usuario en la respuesta JSON
         data['user'] = {
@@ -138,12 +151,85 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        # 1. Crear el usuario en estado inactivo
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data['first_name'],
-            last_name=validated_data['last_name']
+            last_name=validated_data['last_name'],
+            is_active=False
         )
+
+        # 2. Generar token temporal firmado (24h de vigencia)
+        token = signing.dumps({'user_id': user.id}, salt='account-activation')
+        activation_url = f"http://localhost:4200/activar/{token}"
+
+        # 3. Enviar correo de verificación por Gmail
+        subject = "¡Gracias por registrarte en nuestra Herramienta CASE!"
+        message = (
+            f"¡Gracias por registrarte en nuestra Herramienta CASE!\n\n"
+            f"Haz clic aquí para activar tu cuenta:\n"
+            f"{activation_url}\n\n"
+            f"Este enlace de activación expirará en 24 horas."
+        )
+
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False
+            )
+        except Exception as e:
+            # Imprimir en consola en caso de fallo para permitir pruebas locales
+            print(f"[EMAIL_LOG] No se pudo enviar el correo por SMTP a {user.email}: {e}")
+            print(f"[ACTIVATION_LINK] {activation_url}")
+
         return user
+
+
+class ActivateAccountSerializer(serializers.Serializer):
+    """
+    Serializer para validar el token de activación y activar la cuenta de usuario.
+    """
+    token = serializers.CharField(
+        required=True,
+        help_text="Token criptográfico de activación enviado por correo."
+    )
+
+    def validate(self, attrs):
+        token = attrs.get('token')
+
+        try:
+            # Token válido por 24 horas (86400 segundos)
+            data = signing.loads(token, salt='account-activation', max_age=86400)
+            user_id = data.get('user_id')
+        except signing.SignatureExpired:
+            raise serializers.ValidationError(
+                {'detail': 'El enlace de activación ha expirado. Por favor solicite un nuevo registro.'}
+            )
+        except signing.BadSignature:
+            raise serializers.ValidationError(
+                {'detail': 'El token de activación es inválido o está corrupto.'}
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                {'detail': 'El usuario asociado al token no fue encontrado.'}
+            )
+
+        attrs['user'] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data['user']
+        if not user.is_active:
+            user.is_active = True
+            user.save()
+        return user
+
 

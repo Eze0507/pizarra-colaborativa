@@ -11,6 +11,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/pages/register.page').then(m => m.RegisterPage)
   },
   {
+    path: 'activar/:token',
+    loadComponent: () => import('./features/auth/pages/activate.page').then(m => m.ActivatePage)
+  },
+  {
     path: 'pizarra',
     canActivate: [authGuard],
     loadComponent: () => import('./features/whiteboard/pages/whiteboard.page').then(m => m.WhiteboardPage)

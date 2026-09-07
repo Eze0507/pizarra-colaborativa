@@ -18,10 +18,12 @@ export class RegisterFormComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
+  private readonly emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
   public readonly registerForm: FormGroup = this.fb.group({
     first_name: ['', [Validators.required]],
     last_name: ['', [Validators.required]],
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.pattern(this.emailPattern)]],
     username: ['', [Validators.required]],
     password: ['', [Validators.required, Validators.minLength(8)]]
   });
@@ -49,8 +51,8 @@ export class RegisterFormComponent {
     this.authService.register(data).subscribe({
       next: () => {
         this.isLoading = false;
-        // Redirige al login con el mensaje de registro exitoso
-        this.router.navigate(['/login'], { queryParams: { registrado: 'true' } });
+        // Redirige al login indicando que revise su correo para activar la cuenta
+        this.router.navigate(['/login'], { queryParams: { verifique_correo: 'true' } });
       },
       error: (error: HttpErrorResponse) => {
         this.isLoading = false;

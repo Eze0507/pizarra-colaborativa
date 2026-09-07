@@ -9,6 +9,7 @@ import { LoginResponse } from '../interfaces/login-response.interface';
 import { RegisterRequest } from '../interfaces/register-request.interface';
 import { RegisterResponse } from '../interfaces/register-response.interface';
 import { LogoutRequest, LogoutResponse } from '../interfaces/logout.interface';
+import { ActivateRequest, ActivateResponse } from '../interfaces/activate.interface';
 
 @Injectable({
   providedIn: 'root'
@@ -31,6 +32,11 @@ export class AuthService {
 
   public register(data: RegisterRequest): Observable<RegisterResponse> {
     return this.http.post<RegisterResponse>(`${this.baseUrl}/registro/`, data);
+  }
+
+  public activateAccount(token: string): Observable<ActivateResponse> {
+    const body: ActivateRequest = { token };
+    return this.http.post<ActivateResponse>(`${this.baseUrl}/activar/`, body);
   }
 
   public logout(): Observable<LogoutResponse | null> {

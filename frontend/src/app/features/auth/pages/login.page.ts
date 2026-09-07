@@ -30,7 +30,9 @@ export class LoginPage implements OnInit {
 
   public ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
-      if (params['registrado'] === 'true' || params['registered'] === 'true') {
+      if (params['verifique_correo'] === 'true') {
+        this.successMessage = '¡Registro exitoso! Te hemos enviado un enlace a tu correo para activar tu cuenta. Por favor revísalo antes de iniciar sesión.';
+      } else if (params['registrado'] === 'true' || params['registered'] === 'true') {
         this.successMessage = '¡Registro exitoso! Ya puedes iniciar sesión con tu cuenta.';
       } else {
         this.successMessage = null;

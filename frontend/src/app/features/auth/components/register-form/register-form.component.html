@@ -55,8 +55,8 @@
       <div *ngIf="registerForm.get('email')?.touched && registerForm.get('email')?.errors?.['required']" class="field-error">
         El correo es obligatorio.
       </div>
-      <div *ngIf="registerForm.get('email')?.touched && registerForm.get('email')?.errors?.['email']" class="field-error">
-        Ingrese un correo electrónico válido.
+      <div *ngIf="registerForm.get('email')?.touched && registerForm.get('email')?.errors?.['pattern']" class="field-error">
+        Ingrese un correo electrónico válido (ej. usuario&#64;dominio.com).
       </div>
     </div>
 
@@ -97,7 +97,7 @@
       <button
         type="submit"
         class="btn btn-primary"
-        [disabled]="isLoading"
+        [disabled]="isLoading || registerForm.invalid"
       >
         <span *ngIf="!isLoading">Registrar</span>
         <span *ngIf="isLoading">Registrando...</span>
