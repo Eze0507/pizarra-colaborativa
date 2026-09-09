@@ -45,7 +45,7 @@ export class LoginFormComponent {
     this.authService.login(credentials).subscribe({
       next: () => {
         this.isLoading = false;
-        this.router.navigate(['/pizarra']);
+        this.router.navigate(['/control']);
       },
       error: (error: HttpErrorResponse) => {
         this.isLoading = false;

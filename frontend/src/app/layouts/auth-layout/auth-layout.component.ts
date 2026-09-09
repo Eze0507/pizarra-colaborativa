@@ -1,19 +1,20 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RegisterFormComponent } from '../components/register-form/register-form.component';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
-  selector: 'app-register-page',
+  selector: 'app-auth-layout',
   standalone: true,
-  imports: [CommonModule, RegisterFormComponent],
+  imports: [CommonModule, RouterOutlet],
   template: `
-    <main class="page-container">
-      <app-register-form></app-register-form>
-    </main>
+    <div class="auth-layout-container">
+      <router-outlet></router-outlet>
+    </div>
   `,
   styles: [`
-    .page-container {
+    .auth-layout-container {
       min-height: 100vh;
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -23,4 +24,4 @@ import { RegisterFormComponent } from '../components/register-form/register-form
     }
   `]
 })
-export class RegisterPage {}
+export class AuthLayoutComponent {}

@@ -1,0 +1,66 @@
+<div class="projects-container">
+  <!-- Barra Superior de la Zona Central -->
+  <div class="projects-header">
+    <div class="header-titles">
+      <h1 class="section-title">Mis proyectos</h1>
+      <span *ngIf="!isLoading" class="project-count">
+        {{ proyectos.length }} {{ proyectos.length === 1 ? 'proyecto' : 'proyectos' }}
+      </span>
+    </div>
+
+    <button type="button" class="btn-create" (click)="openCreateModal()">
+      <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      <span>Crear un nuevo proyecto</span>
+    </button>
+  </div>
+
+  <!-- Estado: Cargando -->
+  <div *ngIf="isLoading" class="state-container">
+    <div class="spinner"></div>
+    <p class="state-text">Cargando proyectos...</p>
+  </div>
+
+  <!-- Estado: Error -->
+  <div *ngIf="!isLoading && errorMessage" class="state-container error-state">
+    <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <p class="error-text">{{ errorMessage }}</p>
+    <button type="button" class="btn-retry" (click)="loadProyectos()">Reintentar</button>
+  </div>
+
+  <!-- Estado: Vacío (Sin proyectos) -->
+  <div *ngIf="!isLoading && !errorMessage && proyectos.length === 0" class="empty-state">
+    <div class="empty-icon-wrapper">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+      </svg>
+    </div>
+    <h3 class="empty-title">Aún no tienes proyectos</h3>
+    <p class="empty-description">Comienza creando tu primer diagrama de clases conceptual para diseñar tu base de datos.</p>
+    <button type="button" class="btn-create-empty" (click)="openCreateModal()">
+      <span>Crear mi primer proyecto</span>
+    </button>
+  </div>
+
+  <!-- Grilla de Proyectos (Ordenados de más reciente a menos reciente) -->
+  <div *ngIf="!isLoading && !errorMessage && proyectos.length > 0" class="projects-grid">
+    <app-project-card
+      *ngFor="let proyecto of proyectos"
+      [proyecto]="proyecto"
+    ></app-project-card>
+  </div>
+
+  <!-- Modal para Crear Nuevo Proyecto -->
+  <app-create-project-modal
+    [isOpen]="isModalOpen"
+    (closed)="onModalClose()"
+    (projectCreated)="onProjectCreated($event)"
+  ></app-create-project-modal>
+</div>

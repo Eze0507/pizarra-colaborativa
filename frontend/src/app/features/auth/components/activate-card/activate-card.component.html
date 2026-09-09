@@ -1,0 +1,33 @@
+<div class="activate-card">
+  <div class="activate-header">
+    <img src="/NodoBoardOficial.png" alt="NodoBoard Logo" class="activate-logo" />
+    <h1 class="activate-title">Activación de Cuenta</h1>
+    <p class="activate-subtitle">Herramienta CASE de Diseño de Datos</p>
+  </div>
+
+  <!-- Estado: Cargando -->
+  <div *ngIf="isLoading" class="state-container">
+    <div class="spinner"></div>
+    <p class="state-text">Validando enlace de activación...</p>
+  </div>
+
+  <!-- Estado: Éxito -->
+  <div *ngIf="!isLoading && isSuccess" class="state-container">
+    <div class="alert alert-success">
+      {{ successMessage }}
+    </div>
+    <button type="button" class="btn btn-primary" (click)="goToLogin()">
+      Iniciar sesión
+    </button>
+  </div>
+
+  <!-- Estado: Error -->
+  <div *ngIf="!isLoading && !isSuccess" class="state-container">
+    <div class="alert alert-error">
+      {{ errorMessage }}
+    </div>
+    <button type="button" class="btn btn-secondary" (click)="goToLogin()">
+      Ir al inicio de sesión
+    </button>
+  </div>
+</div>

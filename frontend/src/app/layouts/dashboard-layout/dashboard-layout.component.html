@@ -1,0 +1,14 @@
+<div class="dashboard-container">
+  <!-- Cabecera Global del Dashboard -->
+  <app-header></app-header>
+
+  <div class="dashboard-body">
+    <!-- Barra Lateral -->
+    <app-sidebar></app-sidebar>
+
+    <!-- Zona Dinámica para Pantallas (Mis proyectos, etc.) -->
+    <main class="dashboard-main">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

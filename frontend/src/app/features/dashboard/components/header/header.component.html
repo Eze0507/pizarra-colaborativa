@@ -1,0 +1,31 @@
+<header class="panel-header">
+  <div class="brand-section">
+    <img src="/NodoBoardOficial.png" alt="Logo" class="brand-logo" />
+    <span class="brand-name">Dashboard</span>
+  </div>
+
+  <div class="header-actions">
+    <!-- Botón de Notificaciones -->
+    <button type="button" class="btn-notification" aria-label="Notificaciones" title="Notificaciones">
+      <svg class="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      <span class="notification-indicator"></span>
+    </button>
+
+    <!-- Perfil de Usuario -->
+    <div class="user-profile">
+      <div class="user-avatar">
+        <svg class="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      </div>
+      <div class="user-details">
+        <span class="user-username">{{ currentUser?.username || 'Usuario' }}</span>
+        <span class="user-email">{{ currentUser?.email || 'usuario@ejemplo.com' }}</span>
+      </div>
+    </div>
+  </div>
+</header>

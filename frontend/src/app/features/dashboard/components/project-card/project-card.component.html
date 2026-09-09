@@ -1,0 +1,32 @@
+<article class="project-card" (click)="openProject()">
+  <div class="card-header">
+    <div class="code-badge">{{ proyecto.codigo }}</div>
+    <span class="updated-time" [title]="proyecto.fecha_actualizacion">
+      Actualizado {{ formattedDate }}
+    </span>
+  </div>
+
+  <div class="card-body">
+    <h3 class="project-title">{{ proyecto.nombre }}</h3>
+    <p *ngIf="proyecto.descripcion" class="project-description">{{ proyecto.descripcion }}</p>
+  </div>
+
+  <div class="card-footer">
+    <div class="owner-info">
+      <svg class="owner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+      <span class="owner-label">Propietario:</span>
+      <span class="owner-name">{{ proyecto.propietario.username }}</span>
+    </div>
+
+    <button type="button" class="btn-open" (click)="openProject(); $event.stopPropagation()">
+      <span>Abrir</span>
+      <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+        <polyline points="12 5 19 12 12 19"></polyline>
+      </svg>
+    </button>
+  </div>
+</article>
