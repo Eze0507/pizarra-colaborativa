@@ -1,0 +1,12 @@
+<button
+  [type]="type"
+  class="custom-btn"
+  [ngClass]="'btn-' + variant"
+  [disabled]="disabled || loading"
+  (click)="onClick($event)"
+>
+  <span *ngIf="loading && loadingText">{{ loadingText }}</span>
+  <span *ngIf="loading && !loadingText">{{ text }}</span>
+  <span *ngIf="!loading">{{ text }}</span>
+  <ng-content></ng-content>
+</button>

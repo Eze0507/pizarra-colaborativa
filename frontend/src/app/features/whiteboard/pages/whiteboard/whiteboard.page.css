@@ -1,0 +1,354 @@
+:host {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.whiteboard-root {
+  --wb-bg: #FFFFFF;
+  --wb-overlay-bg: #F5F5F5;
+  --wb-spinner: #00A3FF;
+  --wb-text-sec: #666666;
+  --wb-error-txt: #555555;
+  --wb-btn-bg: rgba(0, 0, 0, 0.06);
+  --wb-btn-brd: rgba(0, 0, 0, 0.12);
+  --wb-btn-txt: #222222;
+  --wb-btn-hover: rgba(0, 0, 0, 0.1);
+  --wb-editor-bg: #FAFAFA;
+  --wb-editor-color: #111111;
+  --wb-editor-ph: #888888;
+  --wb-header-fondo: #1E293B;
+  --wb-header-texto: #F8FAFC;
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  width: 100%;
+  min-height: 0;
+  background-color: var(--wb-bg);
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  position: relative;
+  transition: background-color 0.25s;
+}
+
+.whiteboard-root.modo-oscuro {
+  --wb-bg: #111111;
+  --wb-overlay-bg: #111111;
+  --wb-spinner: #00A3FF;
+  --wb-text-sec: #888888;
+  --wb-error-txt: #AAAAAA;
+  --wb-btn-bg: rgba(255, 255, 255, 0.06);
+  --wb-btn-brd: rgba(255, 255, 255, 0.12);
+  --wb-btn-txt: #EDEDED;
+  --wb-btn-hover: rgba(255, 255, 255, 0.1);
+  --wb-editor-bg: #1A1A1A;
+  --wb-editor-color: #EDEDED;
+  --wb-editor-ph: #666666;
+  --wb-header-fondo: #1E293B;
+  --wb-header-texto: #F8FAFC;
+}
+
+.loading-overlay, .error-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--wb-overlay-bg);
+  gap: 20px;
+  z-index: 10;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 163, 255, 0.15);
+  border-top-color: var(--wb-spinner);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  color: var(--wb-text-sec);
+  font-size: 14px;
+  margin: 0;
+}
+
+.error-icon {
+  width: 48px;
+  height: 48px;
+  color: #EF4444;
+}
+
+.error-text {
+  color: var(--wb-error-txt);
+  font-size: 14px;
+  max-width: 400px;
+  text-align: center;
+  margin: 0;
+}
+
+.btn-volver-error {
+  padding: 8px 20px;
+  background-color: var(--wb-btn-bg);
+  border: 1px solid var(--wb-btn-brd);
+  border-radius: 8px;
+  color: var(--wb-btn-txt);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+
+.btn-volver-error:hover {
+  background-color: var(--wb-btn-hover);
+}
+
+.lienzo-wrapper {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.lienzo {
+  width: 100%;
+  height: 100%;
+}
+
+::ng-deep .joint-port {
+  opacity: 0;
+  cursor: crosshair !important;
+  transition: opacity 0.18s ease-in-out;
+  pointer-events: auto;
+}
+
+::ng-deep .joint-element:hover .joint-port,
+::ng-deep .joint-element.puertos-visibles .joint-port,
+::ng-deep .arrastrando-puerto .joint-port {
+  opacity: 1 !important;
+}
+
+::ng-deep .joint-port circle {
+  cursor: crosshair !important;
+  transition: r 0.15s ease, stroke 0.15s ease, fill 0.15s ease, filter 0.15s ease;
+}
+
+::ng-deep .joint-port circle:hover,
+::ng-deep .joint-port:hover circle {
+  r: 6.5px !important;
+  fill: #00A3FF !important;
+  stroke: #FFFFFF !important;
+  stroke-width: 2px !important;
+  filter: drop-shadow(0 0 5px rgba(0, 163, 255, 0.9)) !important;
+}
+
+.whiteboard-root.modo-oscuro ::ng-deep .joint-port circle:hover,
+.whiteboard-root.modo-oscuro ::ng-deep .joint-port:hover circle {
+  r: 6.5px !important;
+  fill: #38BDF8 !important;
+  stroke: #FFFFFF !important;
+  stroke-width: 2px !important;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.95)) !important;
+}
+
+::ng-deep .source-arrowhead,
+::ng-deep .target-arrowhead,
+::ng-deep .tool .source-arrowhead,
+::ng-deep .tool .target-arrowhead,
+::ng-deep .tools .source-arrowhead,
+::ng-deep .tools .target-arrowhead {
+  fill: #00A3FF !important;
+  stroke: #FFFFFF !important;
+  stroke-width: 1.8px !important;
+  cursor: grab !important;
+  filter: drop-shadow(0 0 3px rgba(0, 163, 255, 0.75));
+  transition: filter 0.15s ease, stroke-width 0.15s ease;
+}
+
+::ng-deep .source-arrowhead:hover,
+::ng-deep .target-arrowhead:hover,
+::ng-deep .tool .source-arrowhead:hover,
+::ng-deep .tool .target-arrowhead:hover {
+  stroke-width: 2.2px !important;
+  filter: drop-shadow(0 0 7px rgba(0, 163, 255, 1)) !important;
+}
+
+::ng-deep .source-arrowhead:active,
+::ng-deep .target-arrowhead:active,
+::ng-deep .tool .source-arrowhead:active,
+::ng-deep .tool .target-arrowhead:active {
+  cursor: grabbing !important;
+}
+
+.whiteboard-root.modo-oscuro ::ng-deep .source-arrowhead,
+.whiteboard-root.modo-oscuro ::ng-deep .target-arrowhead,
+.whiteboard-root.modo-oscuro ::ng-deep .tool .source-arrowhead,
+.whiteboard-root.modo-oscuro ::ng-deep .tool .target-arrowhead {
+  fill: #FFFFFF !important;
+  stroke: #18181B !important;
+  stroke-width: 1.8px !important;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9)) !important;
+}
+
+.whiteboard-root.modo-oscuro ::ng-deep .source-arrowhead:hover,
+.whiteboard-root.modo-oscuro ::ng-deep .target-arrowhead:hover,
+.whiteboard-root.modo-oscuro ::ng-deep .tool .source-arrowhead:hover,
+.whiteboard-root.modo-oscuro ::ng-deep .tool .target-arrowhead:hover {
+  stroke-width: 2.2px !important;
+  filter: drop-shadow(0 0 8px #FFFFFF) !important;
+}
+
+::ng-deep .joint-tool .marker-vertex {
+  fill: #00A3FF !important;
+  stroke: #FFFFFF !important;
+  stroke-width: 2px !important;
+  cursor: grab !important;
+  transition: r 0.15s ease, filter 0.15s ease;
+}
+
+::ng-deep .joint-tool .marker-vertex:hover {
+  r: 8px !important;
+  filter: drop-shadow(0 0 5px rgba(0, 163, 255, 0.85));
+}
+
+::ng-deep .joint-tool .marker-vertex:active {
+  cursor: grabbing !important;
+}
+
+::ng-deep .joint-tool .marker-segment rect {
+  fill: #00A3FF !important;
+  stroke: #FFFFFF !important;
+  stroke-width: 1.5px !important;
+  cursor: grab !important;
+  transition: fill 0.15s ease, filter 0.15s ease;
+}
+
+::ng-deep .joint-tool .marker-segment:hover rect {
+  fill: #0088D6 !important;
+  filter: drop-shadow(0 0 5px rgba(0, 163, 255, 0.85));
+}
+
+::ng-deep .joint-tool .marker-segment:active rect {
+  cursor: grabbing !important;
+}
+
+::ng-deep .joint-theme-default .joint-link path.connection,
+::ng-deep .joint-theme-default .joint-link path.connection-wrap {
+  cursor: pointer;
+}
+
+::ng-deep .joint-theme-default .joint-link .labels {
+  pointer-events: auto !important;
+}
+
+::ng-deep .labels g[label-idx],
+::ng-deep .labels g[label-idx] * {
+  cursor: pointer !important;
+  pointer-events: all !important;
+}
+
+::ng-deep .labels g[label-idx] rect {
+  cursor: pointer !important;
+  pointer-events: all !important;
+  transition: stroke 0.15s ease, filter 0.15s ease, fill 0.15s ease;
+}
+
+::ng-deep .labels g[label-idx]:hover rect {
+  stroke: #00A3FF !important;
+  stroke-width: 1.8px !important;
+  filter: drop-shadow(0 0 6px rgba(0, 163, 255, 0.75)) !important;
+}
+
+::ng-deep .labels g[label-idx] text {
+  cursor: pointer !important;
+  pointer-events: all !important;
+  transition: fill 0.15s ease;
+  user-select: none;
+}
+
+::ng-deep .labels g[label-idx]:hover text {
+  fill: #00A3FF !important;
+  font-weight: 700 !important;
+}
+
+::ng-deep .labels g[label-idx].capsula-seleccionada rect {
+  stroke: #00A3FF !important;
+  stroke-width: 2px !important;
+  filter: drop-shadow(0 0 8px rgba(0, 163, 255, 0.85)) !important;
+}
+
+::ng-deep .labels g[label-idx].capsula-seleccionada text {
+  fill: #00A3FF !important;
+  font-weight: 700 !important;
+}
+
+::ng-deep .labels g[label-idx].capsula-bloqueada,
+::ng-deep .labels g[label-idx].capsula-bloqueada * {
+  cursor: not-allowed !important;
+}
+
+::ng-deep .labels g[label-idx].capsula-bloqueada rect {
+  cursor: not-allowed !important;
+  opacity: 0.82;
+}
+
+::ng-deep .labels g[label-idx].capsula-bloqueada:hover rect {
+  stroke: rgba(0, 0, 0, 0.2) !important;
+  stroke-width: 1.2px !important;
+  filter: none !important;
+}
+
+.whiteboard-root.modo-oscuro ::ng-deep .labels g[label-idx].capsula-bloqueada:hover rect {
+  stroke: rgba(255, 255, 255, 0.22) !important;
+  stroke-width: 1.2px !important;
+  filter: none !important;
+}
+
+::ng-deep .labels g[label-idx].capsula-bloqueada text {
+  cursor: not-allowed !important;
+  user-select: none;
+}
+
+::ng-deep .labels g[label-idx].capsula-bloqueada:hover text {
+  fill: #777777 !important;
+  font-weight: 600 !important;
+}
+
+.whiteboard-root.modo-oscuro ::ng-deep .labels g[label-idx].capsula-bloqueada:hover text {
+  fill: #888888 !important;
+  font-weight: 600 !important;
+}
+
+::ng-deep .labels g.etiqueta-nombre-relacion rect {
+  stroke: transparent !important;
+  stroke-width: 0 !important;
+  filter: none !important;
+  cursor: pointer !important;
+}
+
+::ng-deep .labels g.etiqueta-nombre-relacion:hover rect {
+  stroke: rgba(0, 163, 255, 0.4) !important;
+  stroke-width: 1px !important;
+  filter: drop-shadow(0 0 4px rgba(0, 163, 255, 0.4)) !important;
+}
+
+::ng-deep .labels g.etiqueta-nombre-relacion text {
+  font-style: italic !important;
+  cursor: pointer !important;
+  user-select: none;
+  transition: fill 0.15s ease;
+}
+
+::ng-deep .labels g.etiqueta-nombre-relacion:hover text {
+  fill: #00A3FF !important;
+}
+
+

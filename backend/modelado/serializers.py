@@ -4,7 +4,7 @@ from django.core import signing
 from django.core.mail import send_mail
 from rest_framework import serializers
 
-from .models import Proyecto
+from .models import Proyecto, Entidad, Atributo, Relacion
 from usuario.models import UserColaborador
 
 
@@ -43,6 +43,7 @@ class ProyectoDetailSerializer(serializers.ModelSerializer):
             'nombre',
             'descripcion',
             'paquete_base',
+            'datos_diagrama',
             'fecha_creacion',
             'fecha_actualizacion',
             'propietario',
@@ -251,3 +252,47 @@ class AceptarInvitacionSerializer(serializers.Serializer):
         colaboracion.rol = UserColaborador.Rol.EDITOR
         colaboracion.save()
         return colaboracion
+
+
+class AtributoDiagramaSerializer(serializers.ModelSerializer):
+    """
+    Serializer para atributos de entidades UML en la carga inicial de la pizarra.
+    """
+    class Meta:
+        model = Atributo
+        fields = ('id', 'nombre', 'tipo', 'es_clave', 'es_nulo', 'orden')
+
+
+class EntidadDiagramaSerializer(serializers.ModelSerializer):
+    """
+    Serializer para entidades UML con sus atributos anidados en orden secuencial.
+    No incluye 'alto' ya que este se calcula dinámicamente en el frontend según sus atributos.
+    """
+    atributos = AtributoDiagramaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Entidad
+        fields = ('id', 'nombre', 'estado', 'coord_x', 'coord_y', 'ancho', 'es_intermedia', 'atributos')
+
+
+class RelacionDiagramaSerializer(serializers.ModelSerializer):
+    """
+    Serializer para relaciones UML entre entidades con cardinalidades de origen y destino.
+    """
+    entidad_origen_id = serializers.IntegerField(source='entidad_origen.id')
+    entidad_destino_id = serializers.IntegerField(source='entidad_destino.id')
+
+    class Meta:
+        model = Relacion
+        fields = (
+            'id',
+            'nombre_relacion',
+            'tipo',
+            'entidad_origen_id',
+            'entidad_destino_id',
+            'cardinalidad_origen',
+            'cardinalidad_destino',
+            'puerto_origen',
+            'puerto_destino'
+        )
+

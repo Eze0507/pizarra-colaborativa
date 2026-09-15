@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
   padding-bottom: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -31,6 +31,12 @@
 .project-count {
   font-size: 13px;
   color: #888888;
+}
+
+.filter-indicator {
+  color: #3b82f6;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .btn-create {
@@ -57,6 +63,19 @@
 .plus-icon {
   width: 16px;
   height: 16px;
+}
+
+/* Barra de Búsqueda y Filtros */
+.projects-toolbar {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.search-container {
+  width: 100%;
+  max-width: 480px;
 }
 
 /* Grilla de Proyectos */
@@ -124,7 +143,7 @@
   background-color: rgba(239, 68, 68, 0.1);
 }
 
-/* Estado Vacío */
+/* Estado Vacío Global */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -185,4 +204,69 @@
 .btn-create-empty:hover {
   background-color: #1d4ed8;
   box-shadow: 0 0 12px rgba(37, 99, 235, 0.35);
+}
+
+/* Estado Vacío de Búsqueda */
+.search-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  background-color: #161616;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.search-empty-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #202020;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  color: #888888;
+}
+
+.search-empty-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.search-empty-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #ededed;
+  margin: 0 0 8px 0;
+}
+
+.search-empty-text {
+  font-size: 13px;
+  color: #888888;
+  margin: 0 0 20px 0;
+}
+
+.search-empty-text strong {
+  color: #ededed;
+}
+
+.btn-clear-search {
+  padding: 8px 16px;
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ededed;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-clear-search:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.25);
 }

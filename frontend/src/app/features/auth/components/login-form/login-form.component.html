@@ -45,23 +45,24 @@
     </div>
 
     <div class="form-actions">
-      <button
+      <app-custom-button
         type="submit"
-        class="btn btn-primary"
+        variant="primary"
+        text="Iniciar sesión"
+        loadingText="Iniciando..."
+        [loading]="isLoading"
         [disabled]="isLoading"
-      >
-        <span *ngIf="!isLoading">Iniciar sesión</span>
-        <span *ngIf="isLoading">Iniciando...</span>
-      </button>
+        [fullWidth]="true"
+      ></app-custom-button>
 
-      <button
+      <app-custom-button
         type="button"
-        class="btn btn-secondary"
-        (click)="goToRegister()"
+        variant="secondary"
+        text="Crear cuenta"
+        (btnClick)="goToRegister()"
         [disabled]="isLoading"
-      >
-        Crear cuenta
-      </button>
+        [fullWidth]="true"
+      ></app-custom-button>
     </div>
   </form>
 </div>

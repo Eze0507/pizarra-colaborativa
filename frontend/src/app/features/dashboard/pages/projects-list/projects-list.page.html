@@ -4,7 +4,8 @@
     <div class="header-titles">
       <h1 class="section-title">Mis proyectos</h1>
       <span *ngIf="!isLoading" class="project-count">
-        {{ proyectos.length }} {{ proyectos.length === 1 ? 'proyecto' : 'proyectos' }}
+        {{ filteredProyectos.length }} {{ filteredProyectos.length === 1 ? 'proyecto' : 'proyectos' }}
+        <span *ngIf="searchTerm" class="filter-indicator">(de {{ proyectos.length }})</span>
       </span>
     </div>
 
@@ -15,6 +16,17 @@
       </svg>
       <span>Crear un nuevo proyecto</span>
     </button>
+  </div>
+
+  <!-- Barra de Búsqueda y Filtros -->
+  <div *ngIf="!isLoading && proyectos.length > 0" class="projects-toolbar">
+    <div class="search-container">
+      <app-search-bar
+        placeholder="Buscar por nombre, código o propietario..."
+        (searchChange)="onSearchChange($event)"
+        (searchClear)="onClearSearch()"
+      ></app-search-bar>
+    </div>
   </div>
 
   <!-- Estado: Cargando -->
@@ -34,7 +46,7 @@
     <button type="button" class="btn-retry" (click)="loadProyectos()">Reintentar</button>
   </div>
 
-  <!-- Estado: Vacío (Sin proyectos) -->
+  <!-- Estado: Vacío Global (Sin proyectos registrados) -->
   <div *ngIf="!isLoading && !errorMessage && proyectos.length === 0" class="empty-state">
     <div class="empty-icon-wrapper">
       <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -49,10 +61,26 @@
     </button>
   </div>
 
-  <!-- Grilla de Proyectos (Ordenados de más reciente a menos reciente) -->
-  <div *ngIf="!isLoading && !errorMessage && proyectos.length > 0" class="projects-grid">
+  <!-- Estado: Sin Resultados de Búsqueda -->
+  <div *ngIf="!isLoading && !errorMessage && proyectos.length > 0 && filteredProyectos.length === 0" class="search-empty-state">
+    <div class="search-empty-icon-wrapper">
+      <svg class="search-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <line x1="8" y1="11" x2="14" y2="11"></line>
+      </svg>
+    </div>
+    <h3 class="search-empty-title">Sin resultados de búsqueda</h3>
+    <p class="search-empty-text">No se encontró ningún proyecto que coincida con "<strong>{{ searchTerm }}</strong>".</p>
+    <button type="button" class="btn-clear-search" (click)="onClearSearch()">
+      Limpiar búsqueda
+    </button>
+  </div>
+
+  <!-- Grilla de Proyectos Filtrados -->
+  <div *ngIf="!isLoading && !errorMessage && filteredProyectos.length > 0" class="projects-grid">
     <app-project-card
-      *ngFor="let proyecto of proyectos"
+      *ngFor="let proyecto of filteredProyectos"
       [proyecto]="proyecto"
     ></app-project-card>
   </div>

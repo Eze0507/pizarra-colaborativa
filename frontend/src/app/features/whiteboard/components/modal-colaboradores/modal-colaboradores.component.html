@@ -1,0 +1,280 @@
+<div class="modal-backdrop" *ngIf="visible" (click)="onCerrar()">
+  <div
+    class="modal-colaboradores-card"
+    [class.modal-oscuro]="modoOscuro"
+    (click)="$event.stopPropagation()"
+  >
+    <!-- Cabecera del Modal -->
+    <div class="modal-header">
+      <div class="modal-header-info">
+        <div class="header-icono">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+        <div>
+          <h2 class="modal-titulo">Colaboradores del Proyecto</h2>
+          <p class="modal-subtitulo">Invita y gestiona quién puede diseñar en esta pizarra</p>
+        </div>
+      </div>
+      <button type="button" class="btn-cerrar-modal" (click)="onCerrar()" title="Cerrar (Esc)">
+        ✕
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <!-- SECCIÓN 1: BÚSQUEDA E INVITACIÓN                          -->
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <section class="seccion-busqueda">
+        <label class="seccion-label">
+          <span class="label-texto">Invitar nuevo colaborador</span>
+          <span class="label-pista" *ngIf="!esPropietario">Solo el propietario puede enviar invitaciones</span>
+        </label>
+
+        <div class="busqueda-fila" *ngIf="esPropietario">
+          <!-- Campo de búsqueda con autocompletado -->
+          <div class="busqueda-input-wrapper">
+            <div class="busqueda-icono">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+
+            <input
+              type="text"
+              class="busqueda-input"
+              placeholder="Buscar usuario por username o email..."
+              [ngModel]="terminoBusqueda"
+              (ngModelChange)="onBuscarInput($event)"
+              autocomplete="off"
+              spellcheck="false"
+            />
+
+            <!-- Spinner de búsqueda en curso -->
+            <div *ngIf="cargandoBusqueda" class="spinner-inline" title="Buscando...">
+              <div class="mini-spinner"></div>
+            </div>
+
+            <!-- Botón limpiar -->
+            <button
+              *ngIf="terminoBusqueda && !cargandoBusqueda"
+              type="button"
+              class="btn-limpiar-busqueda"
+              (click)="deseleccionarUsuario()"
+              title="Limpiar búsqueda"
+            >
+              ✕
+            </button>
+
+            <!-- Menú Desplegable con Resultados de la Búsqueda -->
+            <div *ngIf="mostrarDropdown && resultadosBusqueda.length > 0" class="dropdown-resultados">
+              <div
+                *ngFor="let u of resultadosBusqueda"
+                class="dropdown-item-usuario"
+                (click)="seleccionarUsuario(u)"
+              >
+                <div class="usuario-avatar-mini">
+                  {{ u.username.charAt(0).toUpperCase() }}
+                </div>
+                <div class="usuario-datos-mini">
+                  <span class="usuario-username">{{ u.username }}</span>
+                  <span class="usuario-email">{{ u.email }}</span>
+                </div>
+                <div class="usuario-badge-rol">Usuario</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ICONO DE MENSAJE: Aparece al seleccionar un usuario -->
+          <button
+            *ngIf="usuarioSeleccionado"
+            type="button"
+            class="btn-icono-mensaje"
+            [class.activo]="confirmandoInvitacion"
+            (click)="abrirConfirmacionInvitacion()"
+            title="Enviar invitación por correo"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Ventanita de Confirmación para Enviar Invitación -->
+        <div *ngIf="confirmandoInvitacion && usuarioSeleccionado" class="popover-confirmacion-invitacion">
+          <div class="confirmacion-header">
+            <div class="confirmacion-icono-sobre">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </div>
+            <div class="confirmacion-texto">
+              <p class="confirmacion-pregunta">¿Enviar invitación para colaborar?</p>
+              <p class="confirmacion-destinatario">
+                Se enviará un enlace de acceso seguro a
+                <strong>{{ usuarioSeleccionado.username }}</strong> ({{ usuarioSeleccionado.email }}).
+              </p>
+            </div>
+          </div>
+
+          <div class="confirmacion-acciones">
+            <button
+              type="button"
+              class="btn-cancelar-popover"
+              (click)="cancelarConfirmacionInvitacion()"
+              [disabled]="enviandoInvitacion"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="btn-enviar-popover"
+              (click)="enviarInvitacion()"
+              [disabled]="enviandoInvitacion"
+            >
+              <span *ngIf="enviandoInvitacion" class="spinner-boton"></span>
+              <span>{{ enviandoInvitacion ? 'Enviando correo...' : 'Enviar invitación' }}</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="seccion-divider"></div>
+
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <!-- SECCIÓN 2: LISTA DE COLABORADORES                         -->
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <section class="seccion-colaboradores">
+        <div class="seccion-header-fila">
+          <h3 class="seccion-subtitulo">
+            Equipo del Proyecto
+            <span class="badge-contador">{{ colaboradores.length }}</span>
+          </h3>
+          <button
+            type="button"
+            class="btn-recargar-lista"
+            (click)="cargarColaboradores()"
+            [disabled]="cargandoColaboradores"
+            title="Actualizar lista"
+          >
+            <svg [class.girando]="cargandoColaboradores" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Indicador de Carga de Lista -->
+        <div *ngIf="cargandoColaboradores && colaboradores.length === 0" class="lista-cargando">
+          <div class="mini-spinner"></div>
+          <span>Cargando colaboradores...</span>
+        </div>
+
+        <!-- Lista vacía -->
+        <div *ngIf="!cargandoColaboradores && colaboradores.length === 0" class="lista-vacia">
+          <p>No hay colaboradores registrados en este proyecto.</p>
+        </div>
+
+        <!-- Elementos de la lista -->
+        <div *ngIf="colaboradores.length > 0" class="colaboradores-lista">
+          <div
+            *ngFor="let c of colaboradores"
+            class="colaborador-fila"
+            [class.fila-propietario]="c.rol === 'propietario'"
+          >
+            <!-- Avatar y datos del usuario -->
+            <div class="colaborador-info">
+              <div class="colaborador-avatar" [class.avatar-propietario]="c.rol === 'propietario'">
+                {{ c.usuario.username.charAt(0).toUpperCase() }}
+              </div>
+              <div class="colaborador-textos">
+                <div class="colaborador-nombre-linea">
+                  <span class="colaborador-username">{{ c.usuario.username }}</span>
+                  <span *ngIf="c.rol === 'propietario'" class="tag-rol tag-propietario">Propietario</span>
+                  <span *ngIf="c.rol !== 'propietario'" class="tag-rol">{{ c.rol }}</span>
+                </div>
+                <span class="colaborador-email">{{ c.usuario.email }}</span>
+              </div>
+            </div>
+
+            <!-- Estado y Acciones -->
+            <div class="colaborador-derecha">
+              <!-- Badge de Estado -->
+              <div class="estado-contenedor">
+                <span
+                  class="badge-estado"
+                  [ngClass]="c.estado === 'activo' ? 'estado-activo' : 'estado-pendiente'"
+                >
+                  <span class="punto-estado"></span>
+                  {{ c.estado === 'activo' ? 'Aceptada' : 'Pendiente' }}
+                </span>
+              </div>
+
+              <!-- ACCIÓN 1: Reenviar invitación (Si todavía no respondió / pendiente) -->
+              <button
+                *ngIf="c.estado === 'pendiente' && esPropietario"
+                type="button"
+                class="btn-accion-fila btn-reenviar"
+                (click)="reenviarInvitacion(c)"
+                [disabled]="reenviandoId === c.id"
+                title="Reenviar correo de invitación"
+              >
+                <div *ngIf="reenviandoId === c.id" class="mini-spinner spinner-pequeno"></div>
+                <svg *ngIf="reenviandoId !== c.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                <span class="btn-texto-accion">Reenviar</span>
+              </button>
+
+              <!-- ACCIÓN 2: Eliminar colaborador (Si ya aceptó la invitación y NO es propietario) -->
+              <div *ngIf="c.estado === 'activo' && c.rol !== 'propietario' && esPropietario" class="eliminar-bloque">
+                <button
+                  type="button"
+                  class="btn-accion-fila btn-eliminar-colab"
+                  [class.confirmando]="confirmandoEliminarId === c.id"
+                  (click)="solicitarEliminarColaborador(c.id)"
+                  [disabled]="eliminandoId === c.id"
+                  [title]="confirmandoEliminarId === c.id ? 'Clic para confirmar eliminación' : 'Eliminar colaborador'"
+                >
+                  <div *ngIf="eliminandoId === c.id" class="mini-spinner spinner-pequeno"></div>
+                  <svg *ngIf="eliminandoId !== c.id && confirmandoEliminarId !== c.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  <span class="btn-texto-accion">
+                    {{ confirmandoEliminarId === c.id ? '¿Confirmar?' : 'Eliminar' }}
+                  </span>
+                </button>
+
+                <!-- Botón cancelar confirmación de eliminación -->
+                <button
+                  *ngIf="confirmandoEliminarId === c.id"
+                  type="button"
+                  class="btn-cancelar-mini"
+                  (click)="cancelarEliminacion()"
+                  title="Cancelar"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Pie del Modal -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cerrar-footer" (click)="onCerrar()">
+        Cerrar
+      </button>
+    </div>
+  </div>
+</div>

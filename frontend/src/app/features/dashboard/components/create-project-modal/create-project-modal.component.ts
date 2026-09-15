@@ -5,10 +5,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ProjectsService } from '../../services/projects.service';
 import { Proyecto, ProyectoCreateRequest } from '../../interfaces/proyecto.interface';
 
+import { CustomButtonComponent } from '../../../../shared/components/custom-button/custom-button.component';
+
 @Component({
   selector: 'app-create-project-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, CustomButtonComponent],
   templateUrl: './create-project-modal.component.html',
   styleUrls: ['./create-project-modal.component.css']
 })

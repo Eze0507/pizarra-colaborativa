@@ -32,6 +32,9 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    # ASGI / Daphne debe ir antes de django.contrib.staticfiles para runserver
+    'daphne',
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -80,6 +83,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
 
 
 # Database
@@ -167,4 +171,25 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'noreply@collab.com'
+ 
+ 
+# Channels / WebSocket Channel Layers (Redis como intermediario para colaboración en tiempo real)
+REDIS_HOST = os.environ.get('REDIS_HOST', 'redis')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+REDIS_URL = os.environ.get('REDIS_URL', f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            # channels_redis requiere tupla (host, puerto), NO un string URL.
+            # Un string plano como 'redis://redis:6379/0' no es parseado
+            # correctamente y produce TimeoutError al intentar leer de Redis.
+            'hosts': [(REDIS_HOST, REDIS_PORT)],
+            'capacity': 1500,  # Buffer para eventos concurrentes de pizarra
+            'expiry': 60,      # TTL de mensajes en cola (segundos)
+        },
+    },
+}
+
 

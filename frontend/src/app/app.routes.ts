@@ -48,13 +48,13 @@ export const routes: Routes = [
   },
   // 3. Layout de la Pizarra
   {
-    path: 'pizarra',
+    path: 'pizarra/:id',
     component: PizarraLayoutComponent,
     canActivate: [authGuard],
     children: [
       {
         path: '',
-        loadComponent: () => import('./features/whiteboard/pages/whiteboard.page').then(m => m.WhiteboardPage)
+        loadComponent: () => import('./features/whiteboard/pages/whiteboard/whiteboard.page').then(m => m.WhiteboardPage)
       }
     ]
   },

@@ -6,10 +6,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { LoginRequest } from '../../interfaces/login-request.interface';
 
+import { CustomButtonComponent } from '../../../../shared/components/custom-button/custom-button.component';
+
 @Component({
   selector: 'app-login-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, CustomButtonComponent],
   templateUrl: './login-form.component.html',
   styleUrl: './login-form.component.css'
 })

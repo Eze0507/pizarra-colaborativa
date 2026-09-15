@@ -79,3 +79,27 @@ class LogoutView(APIView):
             {"detail": "Sesión cerrada exitosamente. Token invalidado."},
             status=status.HTTP_200_OK
         )
+
+
+class BuscarUsuariosView(APIView):
+    """
+    Endpoint para buscar usuarios registrados por username o email.
+    Excluye al propio usuario autenticado y requiere autenticación.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from django.db.models import Q
+        from django.contrib.auth.models import User
+        from modelado.serializers import UserSimpleSerializer
+
+        query = request.query_params.get('q', '').strip()
+        if len(query) < 2:
+            return Response([], status=status.HTTP_200_OK)
+
+        usuarios = User.objects.filter(is_active=True).filter(
+            Q(username__icontains=query) | Q(email__icontains=query)
+        ).exclude(id=request.user.id).order_by('username')[:10]
+
+        data = UserSimpleSerializer(usuarios, many=True).data
+        return Response(data, status=status.HTTP_200_OK)

@@ -1,0 +1,140 @@
+<div class="whiteboard-root" [class.modo-oscuro]="modoOscuro">
+
+  <!-- Estado: Cargando -->
+  <div *ngIf="isLoading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p class="loading-text">Cargando diagrama...</p>
+  </div>
+
+  <!-- Estado: Error -->
+  <div *ngIf="!isLoading && errorMessage" class="error-overlay">
+    <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <p class="error-text">{{ errorMessage }}</p>
+    <button type="button" class="btn-volver-error" (click)="onVolverDashboard()">
+      Volver al dashboard
+    </button>
+  </div>
+
+  <!-- Barra lateral de la pizarra -->
+  <app-sidebar-pizarra
+    [proyecto]="proyecto"
+    [estadoConexion]="estadoConexion"
+    [estadoGuardado]="estadoGuardado"
+    [modoOscuro]="modoOscuro"
+    [usuariosConectados]="usuariosConectados"
+    (agregarEntidad)="onAgregarEntidad()"
+    (agregarClaseAsociacion)="onAgregarClaseAsociacion()"
+    (agregarNota)="onAgregarNota()"
+    (renombrarProyecto)="onRenombrarProyecto($event)"
+    (abrirColaboradores)="onAbrirColaboradores()"
+    (generarCodigo)="onGenerarCodigo()"
+    (exportarImagen)="onExportarImagen()"
+    (cerrarSesion)="onCerrarSesion()"
+    (volverDashboard)="onVolverDashboard()"
+    (toggleTema)="onToggleTema()"
+  >
+  </app-sidebar-pizarra>
+
+  <!-- Lienzo JointJS -->
+  <div class="lienzo-wrapper">
+    <div 
+      #lienzo 
+      class="lienzo"
+      (dragover)="onDragOverLienzo($event)"
+      (drop)="onDropLienzo($event)"
+    ></div>
+
+    <!-- Editor inline interactivo sobre la figura seleccionada -->
+    <app-editor-inline
+      [activo]="editorActivo"
+      [tipo]="editorTipo"
+      [posicion]="editorPos"
+      [valor]="editorValor"
+      [placeholder]="editorPlaceholder"
+      [tiposBackend]="TIPOS_BACKEND"
+      (guardar)="onGuardarEditor($event)"
+      (cancelar)="onCancelarEditor()"
+    >
+    </app-editor-inline>
+
+    <!-- Menú contextual flotante de selección de Tipo de Relación UML -->
+    <app-menu-relacion
+      [visible]="menuRelacionActivo"
+      [posicion]="menuRelacionPos"
+      [opciones]="OPCIONES_RELACIONES"
+      (seleccionar)="confirmarTipoRelacion($event)"
+      (cancelar)="cancelarMenuRelacion()"
+    >
+    </app-menu-relacion>
+
+    <!-- Menú flotante de selección de Multiplicidad / Cardinalidad -->
+    <app-menu-cardinalidad
+      [visible]="menuCardinalidadActivo"
+      [posicion]="menuCardinalidadPos"
+      [cardinalidadEditando]="cardinalidadEditando"
+      [opciones]="OPCIONES_CARDINALIDAD"
+      (seleccionar)="seleccionarCardinalidad($event)"
+      (cerrar)="cerrarSelectorCardinalidad()"
+    >
+    </app-menu-cardinalidad>
+
+    <!-- Controles flotantes de Zoom y Navegación (Cámara local) -->
+    <app-controles-zoom
+      [zoomNivel]="zoomNivel"
+      (zoomIn)="onZoomIn()"
+      (zoomOut)="onZoomOut()"
+      (zoomReset)="onZoomReset()"
+    >
+    </app-controles-zoom>
+
+    <!-- Menú contextual flotante al hacer doble clic en una Entidad o Relación -->
+    <app-menu-contextual
+      [visible]="menuContextualActivo"
+      [posicion]="menuContextualPos"
+      [tipo]="menuContextualTipo"
+      [titulo]="menuContextualTitulo"
+      (propiedades)="onAbrirPropiedadesContextual()"
+      (agregarEtiqueta)="onAgregarEtiquetaContextual()"
+      (eliminar)="onEliminarContextual()"
+      (cancelar)="onCancelarMenuContextual()"
+    >
+    </app-menu-contextual>
+
+    <!-- Modal de Propiedades de Entidad (Atributos, PK, Tipos, Estado) -->
+    <app-modal-propiedades-entidad
+      [visible]="modalEntidadActivo"
+      [entidad]="entidadEditando"
+      (guardar)="onGuardarPropiedadesEntidad($event)"
+      (cancelar)="onCancelarModalEntidad()"
+    >
+    </app-modal-propiedades-entidad>
+
+    <!-- Modal de Propiedades de Relación (Nombre/Rol, Cardinalidades UML) -->
+    <app-modal-propiedades-relacion
+      [visible]="modalRelacionActivo"
+      [relacion]="relacionEditando"
+      [nombreOrigen]="relacionNombreOrigen"
+      [nombreDestino]="relacionNombreDestino"
+      (guardar)="onGuardarPropiedadesRelacion($event)"
+      (cancelar)="onCancelarModalRelacion()"
+    >
+    </app-modal-propiedades-relacion>
+
+    <!-- Modal de Gestión de Colaboradores del Proyecto -->
+    <app-modal-colaboradores
+      [visible]="modalColaboradoresActivo"
+      [proyectoId]="proyecto?.id || 0"
+      [esPropietario]="proyecto?.es_propietario || false"
+      [modoOscuro]="modoOscuro"
+      (cerrar)="onCerrarColaboradores()"
+    >
+    </app-modal-colaboradores>
+
+    <!-- Notificaciones Toast Flotantes -->
+    <app-toast-container></app-toast-container>
+  </div>
+</div>

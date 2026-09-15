@@ -1,0 +1,42 @@
+<div
+  *ngIf="activo"
+  class="inline-editor-box"
+  [style.left.px]="posicion.x"
+  [style.top.px]="posicion.y"
+  [style.width.px]="posicion.w"
+  [style.height.px]="posicion.h"
+>
+  <input
+    #inlineInput
+    type="text"
+    class="inline-editor-input"
+    [class.editor-header]="tipo === 'nombre'"
+    [class.editor-body]="tipo === 'nuevo_atributo' || tipo === 'editar_atributo'"
+    [class.editor-relacion]="tipo === 'nombre_relacion'"
+    [value]="editorValor"
+    [placeholder]="placeholder"
+    (input)="onInput($event)"
+    (keydown)="onKeydown($event)"
+    (blur)="onBlur()"
+    autocomplete="off"
+    spellcheck="false"
+  />
+
+  <div
+    *ngIf="mostrarSugerenciasTipos && sugerenciasFiltradas.length > 0"
+    class="dropdown-tipos"
+  >
+    <div class="dropdown-tipos-header">Tipos de datos</div>
+    <div
+      *ngFor="let t of sugerenciasFiltradas; let i = index"
+      class="tipo-opcion"
+      [class.activo]="i === indiceSugerenciaSeleccionada"
+      (mousedown)="onSeleccionarTipo(t, $event)"
+      (mouseenter)="indiceSugerenciaSeleccionada = i"
+    >
+      <span class="tipo-badge" [attr.data-tipo]="t">{{ obtenerAbrevTipo(t) }}</span>
+      <span class="tipo-nombre">{{ t }}</span>
+      <span class="tipo-hint" *ngIf="i === indiceSugerenciaSeleccionada">↵ Enter</span>
+    </div>
+  </div>
+</div>

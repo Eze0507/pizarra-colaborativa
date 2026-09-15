@@ -1,0 +1,189 @@
+<div *ngIf="visible" class="modal-backdrop" (click)="onCancelar()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <div class="header-icon-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+        </div>
+        <div>
+          <h2 class="modal-title">Propiedades de la Entidad</h2>
+          <p class="modal-subtitle">Configura el nombre, estado y gestiona las columnas de la tabla</p>
+        </div>
+      </div>
+      <button type="button" class="btn-close" (click)="onCancelar()" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+      <!-- Sección General -->
+      <div class="seccion-general">
+        <div class="form-group flex-1">
+          <label class="form-label" for="entidad-nombre">
+            Nombre de la Entidad <span class="required">*</span>
+          </label>
+          <input
+            id="entidad-nombre"
+            type="text"
+            class="form-input input-mono"
+            [class.input-error]="!!errorNombre"
+            [(ngModel)]="nombre"
+            (input)="errorNombre = null"
+            placeholder="Ej. Usuario, DetalleFactura"
+            autocomplete="off"
+          />
+          <span *ngIf="errorNombre" class="field-error">{{ errorNombre }}</span>
+        </div>
+
+        <div class="form-group campo-estado">
+          <label class="form-label" for="entidad-estado">Estado</label>
+          <div class="select-wrapper">
+            <select
+              id="entidad-estado"
+              class="form-select"
+              [(ngModel)]="estado"
+            >
+              <option value="activo">Activo</option>
+              <option value="bloqueado">Bloqueado</option>
+              <option value="papelera">Papelera</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección Atributos -->
+      <div class="seccion-atributos">
+        <div class="atributos-header">
+          <div class="atributos-titulo-grupo">
+            <h3 class="atributos-titulo">Atributos del Modelo</h3>
+            <span class="atributos-contador">{{ atributos.length }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn-agregar-atributo"
+            (click)="agregarAtributo()"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Agregar Atributo
+          </button>
+        </div>
+
+        <div *ngIf="atributos.length === 0" class="atributos-vacio">
+          <p>Esta entidad no tiene atributos definidos aún.</p>
+          <button type="button" class="btn-link-agregar" (click)="agregarAtributo()">
+            + Agregar el primer atributo
+          </button>
+        </div>
+
+        <div *ngIf="atributos.length > 0" class="tabla-atributos-wrapper">
+          <table class="tabla-atributos">
+            <thead>
+              <tr>
+                <th class="col-pk" title="Clave Primaria">PK</th>
+                <th class="col-nombre">Nombre de Columna</th>
+                <th class="col-tipo">Tipo de Dato</th>
+                <th class="col-nulo" title="Permite valores nulos">¿Nulo?</th>
+                <th class="col-acciones"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let attr of atributos; let i = index" class="fila-atributo">
+                <!-- PK Toggle -->
+                <td class="col-pk">
+                  <label class="checkbox-pk-label" title="Clave Primaria">
+                    <input
+                      type="checkbox"
+                      class="checkbox-pk-input"
+                      [(ngModel)]="attr.es_clave"
+                    />
+                    <span class="pk-badge" [class.pk-activo]="attr.es_clave">PK</span>
+                  </label>
+                </td>
+
+                <!-- Nombre Atributo -->
+                <td class="col-nombre">
+                  <input
+                    type="text"
+                    class="form-input input-mono input-tabla"
+                    [(ngModel)]="attr.nombre"
+                    placeholder="nombre_campo"
+                    autocomplete="off"
+                  />
+                </td>
+
+                <!-- Tipo de Dato -->
+                <td class="col-tipo">
+                  <select
+                    class="form-select select-tipo input-mono"
+                    [(ngModel)]="attr.tipo"
+                  >
+                    <option *ngFor="let t of tiposDisponibles" [value]="t">{{ t }}</option>
+                  </select>
+                </td>
+
+                <!-- Nullable Toggle -->
+                <td class="col-nulo">
+                  <label class="toggle-nulo-label" title="¿Permite nulos?">
+                    <input
+                      type="checkbox"
+                      class="checkbox-nulo-input"
+                      [(ngModel)]="attr.es_nulo"
+                    />
+                    <span class="nulo-badge" [class.nulo-activo]="attr.es_nulo">
+                      {{ attr.es_nulo ? 'NULL' : 'NOT NULL' }}
+                    </span>
+                  </label>
+                </td>
+
+                <!-- Eliminar fila -->
+                <td class="col-acciones">
+                  <button
+                    type="button"
+                    class="btn-eliminar-fila"
+                    (click)="eliminarAtributo(i)"
+                    title="Eliminar atributo"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn-modal btn-secundario"
+        (click)="onCancelar()"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        class="btn-modal btn-primario"
+        (click)="onGuardar()"
+      >
+        Guardar Cambios
+      </button>
+    </div>
+  </div>
+</div>

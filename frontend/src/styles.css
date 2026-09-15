@@ -26,6 +26,17 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * app-root es display:inline por defecto — sin esto la cadena de
+ * altura se rompe y todos los hijos con height:100% obtienen 0px.
+ */
+app-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
 button, input, select, textarea {
   font-family: inherit;
 }

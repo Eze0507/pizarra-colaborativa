@@ -1,0 +1,146 @@
+<div *ngIf="visible" class="modal-backdrop" (click)="onCancelar()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <div class="header-icon-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h2 class="modal-title">Propiedades de la Relación</h2>
+          <p class="modal-subtitle">Configura el nombre del rol y las multiplicidades UML</p>
+        </div>
+      </div>
+      <button type="button" class="btn-close" (click)="onCancelar()" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+      <!-- Resumen de Conexión -->
+      <div class="conexion-banner">
+        <div class="conexion-entidad entidad-origen">
+          <span class="conexion-tag">Origen</span>
+          <span class="conexion-nombre">{{ nombreOrigen }}</span>
+        </div>
+        <div class="conexion-separador">
+          <span class="conexion-linea"></span>
+          <span class="badge-tipo-relacion">{{ tipoTexto }}</span>
+          <span class="conexion-linea"></span>
+        </div>
+        <div class="conexion-entidad entidad-destino">
+          <span class="conexion-tag">Destino</span>
+          <span class="conexion-nombre">{{ nombreDestino }}</span>
+        </div>
+      </div>
+
+      <!-- Nombre de la Relación -->
+      <div class="form-group">
+        <label class="form-label" for="rel-nombre">
+          Nombre de la Relación / Rol <span class="opcional">(Opcional)</span>
+        </label>
+        <input
+          id="rel-nombre"
+          type="text"
+          class="form-input input-mono"
+          [(ngModel)]="nombreRelacion"
+          placeholder="Ej. contiene, administra, pertenece_a"
+          autocomplete="off"
+        />
+        <span class="form-hint">Se mostrará en el centro de la línea sobre el diagrama.</span>
+      </div>
+
+      <!-- Cardinalidades (Origen y Destino) -->
+      <div *ngIf="relacion?.tipo !== 'herencia'" class="cardinalidades-grid">
+        <!-- Columna Origen -->
+        <div class="cardinalidad-columna">
+          <div class="cardinalidad-col-header">
+            <span class="cardinalidad-col-titulo">Extremo Origen</span>
+            <span class="cardinalidad-col-entidad">{{ nombreOrigen }}</span>
+          </div>
+
+          <div *ngIf="esComposicion" class="alerta-bloqueado">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>Fijada estrictamente en <strong>1</strong> (Composición UML).</span>
+          </div>
+
+          <div *ngIf="!esComposicion" class="cardinalidad-control">
+            <div class="presets-grupo">
+              <button
+                *ngFor="let p of presetsCardinalidad"
+                type="button"
+                class="preset-btn"
+                [class.preset-activo]="cardinalidadOrigen === p"
+                (click)="seleccionarPresetOrigen(p)"
+              >
+                {{ p }}
+              </button>
+            </div>
+            <input
+              type="text"
+              class="form-input input-mono input-cardinalidad"
+              [(ngModel)]="cardinalidadOrigen"
+              placeholder="Multiplicidad"
+            />
+          </div>
+        </div>
+
+        <!-- Columna Destino -->
+        <div class="cardinalidad-columna">
+          <div class="cardinalidad-col-header">
+            <span class="cardinalidad-col-titulo">Extremo Destino</span>
+            <span class="cardinalidad-col-entidad">{{ nombreDestino }}</span>
+          </div>
+
+          <div class="cardinalidad-control">
+            <div class="presets-grupo">
+              <button
+                *ngFor="let p of presetsCardinalidad"
+                type="button"
+                class="preset-btn"
+                [class.preset-activo]="cardinalidadDestino === p"
+                (click)="seleccionarPresetDestino(p)"
+              >
+                {{ p }}
+              </button>
+            </div>
+            <input
+              type="text"
+              class="form-input input-mono input-cardinalidad"
+              [(ngModel)]="cardinalidadDestino"
+              placeholder="Multiplicidad"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn-modal btn-secundario"
+        (click)="onCancelar()"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        class="btn-modal btn-primario"
+        (click)="onGuardar()"
+      >
+        Guardar Cambios
+      </button>
+    </div>
+  </div>
+</div>

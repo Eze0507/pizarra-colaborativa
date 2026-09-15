@@ -32,6 +32,6 @@ export class ProjectCardComponent {
   }
 
   public openProject(): void {
-    this.router.navigate(['/pizarra']);
+    this.router.navigate(['/pizarra', this.proyecto.id]);
   }
 }

@@ -1,0 +1,211 @@
+.inline-editor-box {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.inline-editor-input,
+input {
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent;
+  margin: 0 !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.inline-editor-input::selection,
+.editor-header::selection,
+.editor-body::selection {
+  background: rgba(0, 163, 255, 0.4);
+  color: inherit;
+}
+
+/* ── 1. Header / Título de la Entidad ── */
+.inline-editor-input.editor-header,
+.editor-header,
+input.editor-header {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  text-align: center !important;
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 6px 6px 0 0 !important;
+  caret-color: #00a3ff !important;
+  padding: 0 12px !important;
+  line-height: 36px !important;
+}
+
+.inline-editor-input.editor-header:focus,
+.editor-header:focus,
+input.editor-header:focus {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.inline-editor-input.editor-header::placeholder,
+.editor-header::placeholder,
+input.editor-header::placeholder {
+  color: rgba(248, 250, 252, 0.45) !important;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ── 2. Body / Atributos (Nuevo o Editar) ── */
+.inline-editor-input.editor-body,
+.editor-body,
+input.editor-body {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  background-color: var(--wb-editor-bg, #fafafa) !important;
+  color: var(--wb-editor-color, #111111) !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  padding: 0 6px !important;
+  caret-color: #00a3ff !important;
+  line-height: 24px !important;
+}
+
+.inline-editor-input.editor-body:focus,
+.editor-body:focus,
+input.editor-body:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.inline-editor-input.editor-body::placeholder,
+.editor-body::placeholder,
+input.editor-body::placeholder {
+  color: var(--wb-editor-ph, #888888) !important;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* ── 3. Relación / Nombre de Relación ── */
+.inline-editor-input.editor-relacion,
+.editor-relacion,
+input.editor-relacion {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
+  font-style: italic !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+  background-color: var(--wb-editor-bg, #fafafa) !important;
+  color: var(--wb-editor-color, #111111) !important;
+  border: 1px solid rgba(0, 163, 255, 0.4) !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  box-shadow: none !important;
+  caret-color: #00a3ff !important;
+  padding: 2px 8px !important;
+}
+
+.dropdown-tipos {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background-color: var(--wb-editor-bg, #1a1a1a);
+  border: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  z-index: 50;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  animation: fadeInTipos 0.12s ease-out;
+}
+
+@keyframes fadeInTipos {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-tipos-header {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--wb-text-sec, #888888);
+  background-color: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+}
+
+.tipo-opcion {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  cursor: pointer;
+  gap: 8px;
+  user-select: none;
+  transition: background-color 0.1s;
+}
+
+.tipo-opcion:hover,
+.tipo-opcion.activo {
+  background-color: rgba(0, 163, 255, 0.12);
+}
+
+.tipo-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  min-width: 34px;
+  text-align: center;
+  text-transform: uppercase;
+  background-color: rgba(0, 163, 255, 0.15);
+  color: #00a3ff;
+}
+
+.tipo-badge[data-tipo="string"]  { background-color: rgba(16, 185, 129, 0.15); color: #10b981; }
+.tipo-badge[data-tipo="integer"] { background-color: rgba(0, 163, 255, 0.15);  color: #00a3ff; }
+.tipo-badge[data-tipo="long"]    { background-color: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.tipo-badge[data-tipo="double"]  { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.tipo-badge[data-tipo="boolean"] { background-color: rgba(236, 72, 153, 0.15); color: #ec4899; }
+.tipo-badge[data-tipo="date"]    { background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+
+.tipo-nombre {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wb-editor-color, #ededed);
+  flex: 1;
+}
+
+.tipo-hint {
+  font-size: 9px;
+  color: #00a3ff;
+  opacity: 0.85;
+}

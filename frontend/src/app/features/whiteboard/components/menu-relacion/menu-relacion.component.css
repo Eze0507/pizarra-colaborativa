@@ -1,0 +1,167 @@
+.menu-relacion-flotante {
+  position: absolute;
+  z-index: 60;
+  width: 280px;
+  background-color: var(--wb-editor-bg, #1a1a1a);
+  border: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  animation: popInMenu 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popInMenu {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.menu-relacion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+}
+
+.menu-relacion-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--wb-text-sec, #888888);
+}
+
+.btn-cerrar-menu-relacion {
+  background: none;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--wb-text-sec, #888888);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.btn-cerrar-menu-relacion:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--wb-btn-txt, #ededed);
+}
+
+.menu-relacion-items {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.opcion-relacion-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.12s, border-color 0.12s;
+  box-sizing: border-box;
+}
+
+.opcion-relacion-btn:hover {
+  background-color: rgba(0, 163, 255, 0.08);
+  border-color: rgba(0, 163, 255, 0.25);
+}
+
+.opcion-relacion-icono {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: rgba(0, 163, 255, 0.1);
+  color: #00A3FF;
+}
+
+.opcion-relacion-icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.opcion-relacion-icono[data-tipo="herencia"] {
+  background-color: rgba(139, 92, 246, 0.12);
+  color: #8B5CF6;
+}
+
+.opcion-relacion-icono[data-tipo="composicion"] {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+
+.opcion-relacion-icono[data-tipo="agregacion"] {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+}
+
+.opcion-relacion-icono[data-tipo="clase_asociacion"] {
+  background-color: rgba(236, 72, 153, 0.12);
+  color: #EC4899;
+}
+
+.opcion-relacion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.opcion-relacion-nombre {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wb-editor-color, #ededed);
+  line-height: 1.2;
+}
+
+.opcion-relacion-subtitulo {
+  font-size: 10px;
+  color: var(--wb-text-sec, #888888);
+  line-height: 1.2;
+}
+
+.menu-relacion-footer {
+  padding: 6px 10px;
+  border-top: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+  display: flex;
+  justify-content: flex-end;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.btn-cancelar-relacion {
+  padding: 4px 10px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+  color: var(--wb-text-sec, #888888);
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.btn-cancelar-relacion:hover {
+  background-color: var(--wb-btn-hover, rgba(255, 255, 255, 0.1));
+  color: var(--wb-btn-txt, #ededed);
+}

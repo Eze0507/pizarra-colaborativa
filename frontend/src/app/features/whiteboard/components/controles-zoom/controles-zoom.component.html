@@ -1,0 +1,33 @@
+<div class="zoom-controls-bar">
+  <button
+    type="button"
+    class="btn-zoom"
+    (click)="onZoomOut()"
+    title="Alejar (Rueda hacia abajo)"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+
+  <button
+    type="button"
+    class="btn-zoom-reset"
+    (click)="onZoomReset()"
+    title="Restablecer zoom al 100%"
+  >
+    {{ zoomNivel }}%
+  </button>
+
+  <button
+    type="button"
+    class="btn-zoom"
+    (click)="onZoomIn()"
+    title="Acercar (Rueda hacia arriba)"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+</div>

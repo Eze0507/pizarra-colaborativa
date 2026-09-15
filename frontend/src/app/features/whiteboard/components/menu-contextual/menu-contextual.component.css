@@ -1,0 +1,263 @@
+.menu-contextual-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1045;
+  background-color: transparent;
+}
+
+.menu-contextual-flotante {
+  position: absolute;
+  z-index: 1050;
+  width: 280px;
+  background-color: #1A1A1A;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  user-select: none;
+  animation: scaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.menu-contextual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: #222222;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.menu-contextual-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.badge-tipo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: rgba(0, 163, 255, 0.15);
+  color: #38BDF8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.badge-tipo.badge-relacion {
+  background-color: rgba(168, 85, 247, 0.15);
+  color: #C084FC;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+.menu-contextual-titulo {
+  font-size: 12px;
+  font-weight: 600;
+  color: #EDEDED;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.btn-cerrar-contextual {
+  background: transparent;
+  border: none;
+  color: #888888;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.btn-cerrar-contextual:hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.menu-contextual-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+}
+
+.accion-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: #EDEDED;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.accion-btn:hover {
+  background-color: #242424;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.accion-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.accion-icono svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icono-propiedades {
+  background-color: rgba(0, 163, 255, 0.12);
+  color: #38BDF8;
+}
+
+.btn-propiedades:hover .icono-propiedades {
+  background-color: rgba(0, 163, 255, 0.22);
+  color: #00A3FF;
+}
+
+.icono-etiqueta {
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #C084FC;
+}
+
+.btn-etiqueta:hover .icono-etiqueta {
+  background-color: rgba(168, 85, 247, 0.22);
+  color: #A855F7;
+}
+
+.icono-eliminar {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+}
+
+.btn-eliminar:hover .icono-eliminar {
+  background-color: rgba(239, 68, 68, 0.22);
+  color: #EF4444;
+}
+
+.accion-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.accion-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: #EDEDED;
+  transition: color 0.15s;
+}
+
+.accion-desc {
+  font-size: 11px;
+  color: #888888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Estado de Confirmación en 2 Pasos para Eliminar */
+.btn-eliminar.modo-confirmar {
+  background-color: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+  animation: pulseDelete 1s infinite alternate;
+}
+
+@keyframes pulseDelete {
+  from {
+    border-color: rgba(239, 68, 68, 0.4);
+    background-color: rgba(239, 68, 68, 0.12);
+  }
+  to {
+    border-color: rgba(239, 68, 68, 0.8);
+    background-color: rgba(239, 68, 68, 0.22);
+  }
+}
+
+.btn-eliminar.modo-confirmar .icono-eliminar {
+  background-color: #EF4444;
+  color: #FFFFFF;
+}
+
+.texto-alerta {
+  color: #FCA5A5 !important;
+  font-weight: 700 !important;
+}
+
+.desc-alerta {
+  color: #EF4444 !important;
+}
+
+/* Modo Claro */
+:host-context(.whiteboard-root:not(.modo-oscuro)) .menu-contextual-flotante {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .menu-contextual-header {
+  background-color: #F8FAFC;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .menu-contextual-titulo {
+  color: #1E293B;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .btn-cerrar-contextual {
+  color: #64748B;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .btn-cerrar-contextual:hover {
+  color: #0F172A;
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .accion-btn {
+  color: #1E293B;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .accion-btn:hover {
+  background-color: #F1F5F9;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .accion-nombre {
+  color: #1E293B;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .accion-desc {
+  color: #64748B;
+}

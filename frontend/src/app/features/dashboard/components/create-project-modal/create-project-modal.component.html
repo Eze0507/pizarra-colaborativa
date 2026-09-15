@@ -47,12 +47,21 @@
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="close()" [disabled]="isSubmitting">
-          Cancelar
-        </button>
-        <button type="submit" class="btn btn-primary" [disabled]="isSubmitting">
-          {{ isSubmitting ? 'Creando proyecto...' : 'Crear proyecto' }}
-        </button>
+        <app-custom-button
+          type="button"
+          variant="secondary"
+          text="Cancelar"
+          (btnClick)="close()"
+          [disabled]="isSubmitting"
+        ></app-custom-button>
+        <app-custom-button
+          type="submit"
+          variant="primary"
+          text="Crear proyecto"
+          loadingText="Creando proyecto..."
+          [loading]="isSubmitting"
+          [disabled]="isSubmitting"
+        ></app-custom-button>
       </div>
     </form>
   </div>

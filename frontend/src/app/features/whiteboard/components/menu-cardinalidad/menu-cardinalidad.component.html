@@ -1,0 +1,51 @@
+<div
+  *ngIf="visible && cardinalidadEditando"
+  class="menu-cardinalidad-flotante"
+  [style.left.px]="posicion.x"
+  [style.top.px]="posicion.y"
+>
+  <div class="menu-cardinalidad-header">
+    <span class="menu-cardinalidad-titulo">
+      Multiplicidad ({{ cardinalidadEditando.extremo === 'origen' ? 'Origen' : 'Destino' }})
+    </span>
+    <button
+      type="button"
+      class="btn-cerrar-menu-cardinalidad"
+      (click)="onCerrar()"
+      title="Cerrar (Esc)"
+    >
+      ✕
+    </button>
+  </div>
+
+  <div class="menu-cardinalidad-pills">
+    <button
+      *ngFor="let opt of opciones"
+      type="button"
+      class="btn-cardinalidad-pill"
+      [class.activo]="opt === cardinalidadEditando.valorActual"
+      (click)="onSeleccionar(opt)"
+    >
+      {{ opt }}
+    </button>
+  </div>
+
+  <div class="menu-cardinalidad-custom">
+    <input
+      type="text"
+      class="input-cardinalidad-custom"
+      [value]="cardinalidadCustom"
+      (input)="onInputCustom($event)"
+      placeholder="Otro (ej. 1..N)"
+      (keydown.enter)="onCustomSubmit()"
+    />
+    <button
+      type="button"
+      class="btn-guardar-cardinalidad"
+      (click)="onCustomSubmit()"
+      title="Aplicar valor"
+    >
+      ✓
+    </button>
+  </div>
+</div>

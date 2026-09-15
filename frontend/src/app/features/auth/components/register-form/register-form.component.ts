@@ -6,10 +6,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import { RegisterRequest } from '../../interfaces/register-request.interface';
 
+import { CustomButtonComponent } from '../../../../shared/components/custom-button/custom-button.component';
+
 @Component({
   selector: 'app-register-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, CustomButtonComponent],
   templateUrl: './register-form.component.html',
   styleUrl: './register-form.component.css'
 })

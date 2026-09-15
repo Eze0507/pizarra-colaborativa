@@ -1,0 +1,492 @@
+<aside class="sidebar" [class.sidebar-oscura]="modoOscuro" [class.sidebar-colapsado]="colapsado">
+
+  <!-- ================================================================= -->
+  <!-- VISTA EXPANDIDA                                                   -->
+  <!-- ================================================================= -->
+  <ng-container *ngIf="!colapsado">
+
+    <!-- ── 1. CABECERA (Fija en la parte superior) ── -->
+    <header class="sidebar-header">
+      
+      <!-- Fila de Marca y Botón Colapsar -->
+      <div class="brand-row">
+        <div class="brand-info">
+          <img src="/NodoBoardOficial.png" alt="NodoBoard Logo" class="brand-logo" />
+          <div class="brand-text-block">
+            <span class="brand-title">NodoBoard</span>
+            <span class="brand-badge">CASE</span>
+          </div>
+        </div>
+        <button 
+          type="button" 
+          class="btn-toggle-colapso" 
+          (click)="toggleColapso()" 
+          title="Ocultar barra lateral"
+          aria-label="Colapsar sidebar"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Nombre del Proyecto (Editable In-Place) -->
+      <div class="proyecto-nombre-box">
+        <div *ngIf="!editandoNombre" class="nombre-display" (click)="iniciarEdicionNombre()" title="Clic para renombrar proyecto">
+          <h2 class="proyecto-nombre-texto">{{ proyecto?.nombre || 'Proyecto sin título' }}</h2>
+          <button type="button" class="btn-lapiz" aria-label="Renombrar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div *ngIf="editandoNombre" class="nombre-editor">
+          <input 
+            type="text" 
+            [(ngModel)]="nombreProyectoInput"
+            (keydown.enter)="confirmarRenombrado()"
+            (keydown.escape)="cancelarEdicionNombre()"
+            (blur)="confirmarRenombrado()"
+            class="input-renombrar"
+            placeholder="Nombre del proyecto..."
+            maxlength="100"
+            autofocus
+          />
+        </div>
+      </div>
+
+      <!-- Fila de Estado de Sincronización y WebSocket -->
+      <div class="estado-sincronizacion-row">
+        <!-- Indicador de Autoguardado con Nube/Check -->
+        <div class="sync-badge" [ngClass]="'sync-' + estadoGuardado">
+          <svg *ngIf="estadoGuardado === 'guardado'" class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"></path>
+            <polyline points="9 13 12 16 17 11"></polyline>
+          </svg>
+          <svg *ngIf="estadoGuardado === 'guardando'" class="sync-icon spin-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+          <svg *ngIf="estadoGuardado === 'error'" class="sync-icon error-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span class="sync-label">{{ etiquetaGuardado }}</span>
+        </div>
+
+        <!-- Indicador de En vivo -->
+        <div class="ws-badge" [ngClass]="claseEstado">
+          <span class="ws-dot"></span>
+          <span class="ws-label">{{ etiquetaEstado }}</span>
+        </div>
+      </div>
+
+      <!-- Fila de Avatares Conectados y Botón Colaboradores -->
+      <div class="colaboracion-row">
+        <div class="avatares-stack" *ngIf="usuariosConectados.length > 0">
+          <div 
+            *ngFor="let u of usuariosVisibles" 
+            class="avatar-item" 
+            [style.background-color]="obtenerColorAvatar(u)"
+            [title]="(u.first_name || u.username) + (u.email ? ' · ' + u.email : '')"
+          >
+            {{ obtenerIniciales(u) }}
+          </div>
+          <div *ngIf="usuariosRestantesCount > 0" class="avatar-item avatar-restantes" [title]="usuariosRestantesCount + ' colaboradores más conectados'">
+            +{{ usuariosRestantesCount }}
+          </div>
+        </div>
+
+        <button 
+          type="button" 
+          class="btn-colaboradores-header" 
+          (click)="abrirColaboradores.emit()"
+          title="Administrar colaboradores del proyecto"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Colaboradores</span>
+        </button>
+      </div>
+
+    </header>
+
+    <!-- ── 2. CUERPO CENTRAL (Pestañas / Acordeón) ── -->
+    <div class="sidebar-body">
+      
+      <!-- Selector de Pestañas -->
+      <div class="pestanas-nav">
+        <button 
+          type="button" 
+          class="tab-btn" 
+          [class.tab-activo]="pestanaActiva === 'toolbox'"
+          (click)="cambiarPestana('toolbox')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Elementos</span>
+        </button>
+
+        <button 
+          type="button" 
+          class="tab-btn" 
+          [class.tab-activo]="pestanaActiva === 'ia'"
+          (click)="cambiarPestana('ia')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg>
+          <span>Asistente IA</span>
+          <span class="tab-chip">Pronto</span>
+        </button>
+      </div>
+
+      <!-- Contenido: Pestaña Toolbox (Elementos) -->
+      <div *ngIf="pestanaActiva === 'toolbox'" class="panel-contenido panel-toolbox">
+        <div class="toolbox-header-info">
+          <span class="toolbox-label">MODELADO DE DATOS</span>
+          <span class="toolbox-sub">Clic o arrastrar al lienzo</span>
+        </div>
+
+        <div class="toolbox-grid">
+          
+          <!-- Elemento 1: Nueva Entidad -->
+          <div 
+            class="toolbox-card card-entidad" 
+            draggable="true"
+            (dragstart)="onDragStart($event, 'entidad')"
+            (click)="agregarEntidad.emit()"
+            title="Añadir una nueva entidad / tabla al diagrama"
+          >
+            <div class="card-icon icon-entidad">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+            </div>
+            <div class="card-info">
+              <span class="card-titulo">Nueva Entidad</span>
+              <span class="card-desc">Tabla o clase relacional</span>
+            </div>
+            <div class="card-action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Elemento 2: Nueva Clase de Asociación -->
+          <div 
+            class="toolbox-card card-asociacion"
+            draggable="true"
+            (dragstart)="onDragStart($event, 'clase_asociacion')"
+            (click)="agregarClaseAsociacion.emit()"
+            title="Crear relación Muchos a Muchos asistida"
+          >
+            <div class="card-icon icon-asociacion">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="6" cy="6" r="3"></circle>
+                <circle cx="18" cy="18" r="3"></circle>
+                <line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>
+                <line x1="12" y1="12" x2="17" y2="7" stroke-dasharray="2,2"></line>
+                <rect x="16" y="4" width="6" height="5" rx="1"></rect>
+              </svg>
+            </div>
+            <div class="card-info">
+              <span class="card-titulo">Clase Asociación</span>
+              <span class="card-desc">Enlace N:M con tabla puente</span>
+            </div>
+            <div class="card-action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Elemento 3: Notas / Comentarios Libres -->
+          <div 
+            class="toolbox-card card-nota"
+            draggable="true"
+            (dragstart)="onDragStart($event, 'nota')"
+            (click)="agregarNota.emit()"
+            title="Añadir un comentario o nota conceptual libre"
+          >
+            <div class="card-icon icon-nota">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <div class="card-info">
+              <span class="card-titulo">Nota / Comentario</span>
+              <span class="card-desc">Texto descriptivo en el lienzo</span>
+            </div>
+            <div class="card-action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Contenido: Pestaña Asistente Virtual IA -->
+      <div *ngIf="pestanaActiva === 'ia'" class="panel-contenido panel-ia">
+        <div class="ia-banner">
+          <div class="ia-chip">
+            <span class="ia-dot"></span>
+            <span>Gemini IA Assistant</span>
+          </div>
+          <h3 class="ia-titulo">Asistencia Generativa</h3>
+          <p class="ia-sub">
+            Diseña, normaliza y optimiza tu base de datos con inteligencia artificial contextual.
+          </p>
+        </div>
+
+        <div class="ia-chat-preview">
+          <input 
+            type="text" 
+            disabled 
+            placeholder="Pregunta a Gemini sobre tu modelo..." 
+            class="ia-input-mock"
+          />
+          <span class="ia-badge-fase">Fase 2 en desarrollo</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── 3. PIE DEL SIDEBAR (Acciones Globales) ── -->
+    <footer class="sidebar-footer">
+      
+      <!-- Botón Estrella: Generar Código (Spring Boot) -->
+      <button 
+        type="button" 
+        class="btn-cta-estrella" 
+        (click)="generarCodigo.emit()"
+        title="Generar entidades JPA y código Spring Boot automáticamente"
+      >
+        <div class="cta-glow"></div>
+        <div class="cta-content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+          <div class="cta-text-group">
+            <span class="cta-principal">Generar Código</span>
+            <span class="cta-secundario">Spring Boot & JPA</span>
+          </div>
+        </div>
+        <span class="badge-fase-estrella">Pronto</span>
+      </button>
+
+      <!-- Botón Secundario: Exportar Imagen -->
+      <button 
+        type="button" 
+        class="btn-cta-secundario" 
+        (click)="exportarImagen.emit()"
+        title="Descargar diagrama como imagen PNG o archivo PDF"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Exportar Imagen (PNG/PDF)</span>
+      </button>
+
+      <div class="footer-divider"></div>
+
+      <!-- Fila de Navegación y Utilidades Discretas -->
+      <div class="footer-utilidades-row">
+        
+        <!-- Enlace Sutil al Dashboard -->
+        <button 
+          type="button" 
+          class="btn-dashboard-sutil" 
+          (click)="volverDashboard.emit()"
+          title="Regresar al panel de proyectos"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Dashboard</span>
+        </button>
+
+        <!-- Toggle de Modo Oscuro Discreto -->
+        <button 
+          type="button" 
+          class="btn-util-icon" 
+          (click)="toggleTema.emit()"
+          [title]="modoOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+          aria-label="Cambiar tema"
+        >
+          <!-- Icono Luna cuando está en modo claro para pasar a oscuro -->
+          <svg *ngIf="!modoOscuro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"></path>
+          </svg>
+          <!-- Icono Sol cuando está en modo oscuro para pasar a claro -->
+          <svg *ngIf="modoOscuro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+
+        <!-- Cerrar Sesión Discreto -->
+        <button 
+          type="button" 
+          class="btn-util-icon btn-util-logout" 
+          (click)="cerrarSesion.emit()"
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+
+      </div>
+
+    </footer>
+
+  </ng-container>
+
+  <!-- ================================================================= -->
+  <!-- VISTA COLAPSADA (Modo Rail Inteligente)                           -->
+  <!-- ================================================================= -->
+  <ng-container *ngIf="colapsado">
+    <div class="sidebar-rail">
+      
+      <!-- Botón Desplegar Sidebar -->
+      <button 
+        type="button" 
+        class="rail-toggle-btn" 
+        (click)="toggleColapso()" 
+        title="Expandir barra lateral"
+        aria-label="Expandir sidebar"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+
+      <!-- Logo NodoBoard Mini -->
+      <div class="rail-logo-box" (click)="toggleColapso()" title="NodoBoard CASE">
+        <img src="/NodoBoardOficial.png" alt="NodoBoard Logo" class="rail-logo" />
+        <span class="rail-sync-dot" [ngClass]="'sync-dot-' + estadoGuardado" [title]="etiquetaGuardado"></span>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Iconos de Pestañas Rápidas -->
+      <div class="rail-tabs">
+        <button 
+          type="button" 
+          class="rail-btn" 
+          [class.rail-btn-active]="pestanaActiva === 'toolbox'"
+          (click)="abrirEnPestana('toolbox')"
+          title="Herramientas de Modelado"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        </button>
+
+        <button 
+          type="button" 
+          class="rail-btn" 
+          [class.rail-btn-active]="pestanaActiva === 'ia'"
+          (click)="abrirEnPestana('ia')"
+          title="Asistente IA (Gemini)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg>
+        </button>
+
+        <!-- Colaboradores Rápido -->
+        <button 
+          type="button" 
+          class="rail-btn rail-btn-colab" 
+          (click)="abrirColaboradores.emit()"
+          [title]="'Colaboradores (' + usuariosConectados.length + ' conectados)'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+          </svg>
+          <span class="rail-colab-count" *ngIf="usuariosConectados.length > 0">{{ usuariosConectados.length }}</span>
+        </button>
+      </div>
+
+      <div class="rail-spacer"></div>
+
+      <!-- Pie del Rail -->
+      <div class="rail-footer">
+        
+        <!-- Toggle Tema Discreto -->
+        <button 
+          type="button" 
+          class="rail-btn" 
+          (click)="toggleTema.emit()" 
+          [title]="modoOscuro ? 'Modo claro' : 'Modo oscuro'"
+        >
+          <svg *ngIf="!modoOscuro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"></path>
+          </svg>
+          <svg *ngIf="modoOscuro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+          </svg>
+        </button>
+
+        <!-- Dashboard -->
+        <button 
+          type="button" 
+          class="rail-btn" 
+          (click)="volverDashboard.emit()" 
+          title="Volver al Dashboard"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+        </button>
+
+      </div>
+
+    </div>
+  </ng-container>
+
+</aside>

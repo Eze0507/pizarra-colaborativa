@@ -94,23 +94,24 @@
     </div>
 
     <div class="form-actions">
-      <button
+      <app-custom-button
         type="submit"
-        class="btn btn-primary"
+        variant="primary"
+        text="Registrar"
+        loadingText="Registrando..."
+        [loading]="isLoading"
         [disabled]="isLoading || registerForm.invalid"
-      >
-        <span *ngIf="!isLoading">Registrar</span>
-        <span *ngIf="isLoading">Registrando...</span>
-      </button>
+        [fullWidth]="true"
+      ></app-custom-button>
 
-      <button
+      <app-custom-button
         type="button"
-        class="btn btn-secondary"
-        (click)="onCancel()"
+        variant="secondary"
+        text="Cancelar"
+        (btnClick)="onCancel()"
         [disabled]="isLoading"
-      >
-        Cancelar
-      </button>
+        [fullWidth]="true"
+      ></app-custom-button>
     </div>
   </form>
 </div>

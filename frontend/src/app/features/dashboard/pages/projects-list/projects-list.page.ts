@@ -5,11 +5,12 @@ import { ProjectsService } from '../../services/projects.service';
 import { Proyecto } from '../../interfaces/proyecto.interface';
 import { ProjectCardComponent } from '../../components/project-card/project-card.component';
 import { CreateProjectModalComponent } from '../../components/create-project-modal/create-project-modal.component';
+import { SearchBarComponent } from '../../../../shared/components/search-bar/search-bar.component';
 
 @Component({
   selector: 'app-projects-list-page',
   standalone: true,
-  imports: [CommonModule, ProjectCardComponent, CreateProjectModalComponent],
+  imports: [CommonModule, ProjectCardComponent, CreateProjectModalComponent, SearchBarComponent],
   templateUrl: './projects-list.page.html',
   styleUrls: ['./projects-list.page.css']
 })
@@ -20,6 +21,7 @@ export class ProjectsListPage implements OnInit {
   public isLoading = true;
   public errorMessage: string | null = null;
   public isModalOpen = false;
+  public searchTerm = '';
 
   public ngOnInit(): void {
     this.loadProyectos();
@@ -48,6 +50,27 @@ export class ProjectsListPage implements OnInit {
         }
       }
     });
+  }
+
+  public get filteredProyectos(): Proyecto[] {
+    if (!this.searchTerm) {
+      return this.proyectos;
+    }
+    const term = this.searchTerm.toLowerCase();
+    return this.proyectos.filter(p =>
+      p.nombre.toLowerCase().includes(term) ||
+      p.codigo.toLowerCase().includes(term) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(term)) ||
+      (p.propietario && p.propietario.username.toLowerCase().includes(term))
+    );
+  }
+
+  public onSearchChange(term: string): void {
+    this.searchTerm = term;
+  }
+
+  public onClearSearch(): void {
+    this.searchTerm = '';
   }
 
   public openCreateModal(): void {
