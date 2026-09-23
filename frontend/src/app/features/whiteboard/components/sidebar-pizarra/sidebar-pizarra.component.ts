@@ -1,7 +1,26 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  OnChanges,
+  SimpleChanges,
+  inject
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ProyectoDiagrama, EstadoConexion, UsuarioConectado } from '../../interfaces/diagrama.interface';
+import { HttpErrorResponse } from '@angular/common/http';
+import {
+  ProyectoDiagrama,
+  EstadoConexion,
+  UsuarioConectado
+} from '../../interfaces/diagrama.interface';
+import {
+  DiagramaGeneradoPayload
+} from '../../interfaces/asistente-ia.interface';
+import { AsistenteIaService } from '../../services/asistente-ia.service';
+import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
 
 export type PestanaSidebar = 'toolbox' | 'ia';
 
@@ -13,6 +32,9 @@ export type PestanaSidebar = 'toolbox' | 'ia';
   styleUrls: ['./sidebar-pizarra.component.css']
 })
 export class SidebarPizarraComponent implements OnInit, OnChanges {
+  private readonly asistenteIaService = inject(AsistenteIaService);
+  private readonly toastService = inject(ToastNotificationService);
+
   @Input() public proyecto: ProyectoDiagrama | null = null;
   @Input() public estadoConexion: EstadoConexion = 'desconectado';
   @Input() public estadoGuardado: 'guardado' | 'guardando' | 'error' = 'guardado';
@@ -28,9 +50,14 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
   @Output() public readonly renombrarProyecto = new EventEmitter<string>();
   @Output() public readonly abrirColaboradores = new EventEmitter<void>();
 
+  // Asistente IA (Boceto a Diagrama)
+  @Output() public readonly diagramaIAGenerado = new EventEmitter<DiagramaGeneradoPayload>();
+
   // Acciones globales del pie
   @Output() public readonly generarCodigo = new EventEmitter<void>();
   @Output() public readonly exportarImagen = new EventEmitter<void>();
+  @Output() public readonly exportarXml = new EventEmitter<void>();
+  @Output() public readonly importarXml = new EventEmitter<File>();
   @Output() public readonly volverDashboard = new EventEmitter<void>();
   @Output() public readonly cerrarSesion = new EventEmitter<void>();
   @Output() public readonly toggleTema = new EventEmitter<void>();
@@ -40,6 +67,15 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
   public pestanaActiva: PestanaSidebar = 'toolbox';
   public editandoNombre = false;
   public nombreProyectoInput = '';
+
+  // Estado del Boceto a Diagrama
+  public archivoSeleccionado: File | null = null;
+  public previsualizacionUrl: string | null = null;
+  public instruccionesIa = '';
+  public cargandoIa = false;
+  public mensajeEstadoIa = '';
+  public errorIa: string | null = null;
+  public arrastrandoArchivo = false;
 
   public ngOnInit(): void {
     if (this.proyecto?.nombre) {
@@ -103,6 +139,101 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
     }
   }
 
+  // ── Asistente IA: Manejo de Boceto / Imagen ──
+
+  public onArchivoSeleccionado(evento: Event): void {
+    const input = evento.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    this.procesarArchivo(input.files[0]);
+  }
+
+  public onDragOverArchivo(evento: DragEvent): void {
+    evento.preventDefault();
+    this.arrastrandoArchivo = true;
+  }
+
+  public onDragLeaveArchivo(): void {
+    this.arrastrandoArchivo = false;
+  }
+
+  public onDropArchivo(evento: DragEvent): void {
+    evento.preventDefault();
+    this.arrastrandoArchivo = false;
+    if (evento.dataTransfer && evento.dataTransfer.files.length > 0) {
+      this.procesarArchivo(evento.dataTransfer.files[0]);
+    }
+  }
+
+  private procesarArchivo(archivo: File): void {
+    if (!archivo.type.startsWith('image/')) {
+      this.errorIa = 'El archivo seleccionado debe ser una imagen válida (JPG, PNG, WEBP).';
+      return;
+    }
+    this.errorIa = null;
+    this.archivoSeleccionado = archivo;
+    if (this.previsualizacionUrl) {
+      URL.revokeObjectURL(this.previsualizacionUrl);
+    }
+    this.previsualizacionUrl = URL.createObjectURL(archivo);
+  }
+
+  public limpiarImagen(): void {
+    if (this.previsualizacionUrl) {
+      URL.revokeObjectURL(this.previsualizacionUrl);
+      this.previsualizacionUrl = null;
+    }
+    this.archivoSeleccionado = null;
+    this.errorIa = null;
+    this.mensajeEstadoIa = '';
+  }
+
+  public onGenerarDiagramaIA(): void {
+    if (!this.archivoSeleccionado || this.cargandoIa) return;
+    this.cargandoIa = true;
+    this.errorIa = null;
+    this.mensajeEstadoIa = 'Comprimiendo imagen...';
+
+    this.asistenteIaService
+      .comprimirImagen(this.archivoSeleccionado)
+      .then((blobComprimido: Blob) => {
+        this.mensajeEstadoIa = 'Analizando el boceto...';
+        this.enviarImagenABackend(blobComprimido);
+      })
+      .catch(() => {
+        this.mensajeEstadoIa = 'Analizando el boceto...';
+        this.enviarImagenABackend(this.archivoSeleccionado!);
+      });
+  }
+
+  private enviarImagenABackend(imagen: Blob | File): void {
+    this.asistenteIaService
+      .generarDiagramaDesdeImagen(imagen, this.instruccionesIa)
+      .subscribe({
+        next: (resp) => {
+          this.mensajeEstadoIa = 'Construyendo diagrama...';
+          const payload = this.asistenteIaService.normalizarRespuestaIA(resp);
+          if (payload.entidades.length === 0) {
+            this.errorIa = 'No se detectaron tablas o clases legibles en el boceto. Intenta con una toma más cercana.';
+            this.cargandoIa = false;
+            return;
+          }
+          this.diagramaIAGenerado.emit(payload);
+          this.toastService.exito(
+            `¡Diagrama generado! ${payload.entidades.length} entidades y ${payload.relaciones.length} relaciones.`
+          );
+          this.limpiarImagen();
+          this.instruccionesIa = '';
+          this.cargandoIa = false;
+        },
+        error: (err: HttpErrorResponse) => {
+          this.cargandoIa = false;
+          const msg = err.error?.error || 'No se pudo procesar la imagen del boceto. Verifique su conexión.';
+          this.errorIa = msg;
+          this.toastService.error(msg);
+        }
+      });
+  }
+
   // ── Avatares e Información de Usuarios Conectados ──
 
   public get usuariosVisibles(): UsuarioConectado[] {
@@ -158,6 +289,15 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
       case 'guardado':
       default:
         return 'Guardado';
+    }
+  }
+
+  public onSeleccionarArchivoXml(evento: Event): void {
+    const input = evento.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const archivo = input.files[0];
+      this.importarXml.emit(archivo);
+      input.value = '';
     }
   }
 }

@@ -127,6 +127,8 @@ export class WhiteboardCanvasService {
       interactive:       { linkMove: false },
       linkPinning:       false,
       snapLinks:         { radius: 20 },
+      async:             true,
+      sorting:           joint.dia.Paper.sorting.APPROX,
       highlighting: {
         connecting: {
           name: 'stroke',
@@ -160,7 +162,8 @@ export class WhiteboardCanvasService {
         cellViewS: joint.dia.CellView,
         magnetS: SVGElement,
         cellViewT: joint.dia.CellView,
-        magnetT: SVGElement
+        magnetT: SVGElement,
+        end?: 'source' | 'target'
       ): boolean => {
         if (!cellViewS || !cellViewT) return false;
         if (!cellViewS.model.isElement() || !cellViewT.model.isElement()) return false;
@@ -168,11 +171,14 @@ export class WhiteboardCanvasService {
         const portS = magnetS?.getAttribute('port') || magnetS?.closest?.('[port]')?.getAttribute('port');
         const portT = magnetT?.getAttribute('port') || magnetT?.closest?.('[port]')?.getAttribute('port');
 
-        // Solo permitir conexión si ambos extremos son puertos válidos
-        if (!portS || !portT) return false;
+        // Al mover/reubicar un extremo existente mediante su arrowhead:
+        if (end === 'source' && !portS) return false;
+        if (end === 'target' && !portT) return false;
+        // Al crear un nuevo enlace desde cero (ambos extremos deben ser puertos):
+        if (!end && (!portS || !portT)) return false;
 
         // Si es una relación reflexiva (consigo misma), no permitir conectar un puerto a sí mismo
-        if (cellViewS === cellViewT && portS === portT) return false;
+        if (cellViewS === cellViewT && portS && portT && portS === portT) return false;
 
         return true;
       }
@@ -295,6 +301,10 @@ export class WhiteboardCanvasService {
     if (id !== undefined) this.entityService.cambiarBorde(Number(id), color);
   }
 
+  public setBloqueoEntidad(id: number | undefined, bloqueado: boolean): void {
+    if (id !== undefined) this.entityService.setEstadoBloqueoEntidad(Number(id), bloqueado, this.tema);
+  }
+
   // ── Posicionamiento de Editores Inline ──
 
   public obtenerPosicionEditorNombre(entidadId: number): PosicionEditor | null {
@@ -367,6 +377,10 @@ export class WhiteboardCanvasService {
     this.relationshipService.deseleccionarEnlace();
   }
 
+  public getRelacionSeleccionadaId(): number | null {
+    return this.relationshipService.getRelacionSeleccionadaId();
+  }
+
   public deseleccionarCapsula(): void {
     this.relationshipService.deseleccionarCapsula(this.modoOscuro);
   }
@@ -419,6 +433,10 @@ export class WhiteboardCanvasService {
 
   public getEntidades(): EntidadDiagrama[] {
     return this.entityService.getEntidades();
+  }
+
+  public getRelaciones(): RelacionDiagrama[] {
+    return this.relationshipService.getRelaciones();
   }
 
   public actualizarIdsSincronizados(
@@ -521,9 +539,12 @@ export class WhiteboardCanvasService {
       const relIdExistente = this.relationshipService.getRelacionIdPorLinkId(link.id);
 
       if (relIdExistente !== null) {
-        // Si ya existe otra relación entre estas dos entidades (distinta a esta), revertir al estado anterior
-        if (this.relationshipService.yaExisteRelacion(origenId, destinoId, relIdExistente)) {
-          const relPrevia = this.relationshipService.getRelacion(relIdExistente);
+        const relPrevia = this.relationshipService.getRelacion(relIdExistente);
+        const pOrig = sourcePort || relPrevia?.puerto_origen;
+        const pDest = targetPort || relPrevia?.puerto_destino;
+
+        // Si ya existe otra relación entre estas dos entidades en los mismos puertos exactos, revertir al estado anterior
+        if (this.relationshipService.yaExisteRelacionEnMismosPuertos(origenId, destinoId, pOrig, pDest, relIdExistente)) {
           if (relPrevia) {
             const celdaOrigenAnt = this.entityService.getCelda(relPrevia.entidad_origen_id);
             const celdaDestinoAnt = this.entityService.getCelda(relPrevia.entidad_destino_id);
@@ -541,8 +562,8 @@ export class WhiteboardCanvasService {
           relIdExistente,
           origenId,
           destinoId,
-          sourcePort,
-          targetPort,
+          pOrig,
+          pDest,
           this.modoOscuro
         );
 
@@ -553,8 +574,8 @@ export class WhiteboardCanvasService {
         return;
       }
 
-      // Caso: Nueva relación que se está creando
-      if (this.relationshipService.yaExisteRelacion(origenId, destinoId)) {
+      // Caso: Nueva relación que se está creando (solo evitar colisión en los mismos puertos exactos)
+      if (this.relationshipService.yaExisteRelacionEnMismosPuertos(origenId, destinoId, sourcePort, targetPort)) {
         link.remove();
         return;
       }
@@ -564,6 +585,7 @@ export class WhiteboardCanvasService {
         link.router('manhattan', this.relationshipService.obtenerOpcionesRouterManhattan(true, sourcePort, targetPort));
       }
 
+      this.relationshipService.cancelarRelacionPendiente();
       this.relationshipService.setRelacionPendiente(link, origenId, destinoId, sourcePort, targetPort);
 
       const wrapperRect = this.lienzoContainer!.parentElement!.getBoundingClientRect();
@@ -710,6 +732,7 @@ export class WhiteboardCanvasService {
 
       const entidad = this.entityService.getEntidad(entidadId);
       if (!entidad) return;
+      if (entidad.estado === 'bloqueado') return;
 
       const pos = cellView.model.position();
       const clickY = (y !== undefined)
@@ -805,6 +828,8 @@ export class WhiteboardCanvasService {
       if (evt && evt.button !== 0) return;
       this.deseleccionarEnlace();
       this.deseleccionarCapsula();
+      this.relationshipService.cancelarRelacionPendiente();
+      this.cerrarModales$.next();
       this.cameraService.iniciarPaneo(evt);
     });
   }

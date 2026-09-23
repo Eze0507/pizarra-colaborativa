@@ -1,0 +1,178 @@
+<!-- ================================================================= -->
+<!-- BOTÓN FLOTANTE (FAB) Y PANEL DESPLEGABLE DE ASISTENTE IA          -->
+<!-- ================================================================= -->
+<div class="chat-ia-wrapper" [class.modo-oscuro]="modoOscuro">
+
+  <!-- ── 1. VENTANA FLOTANTE DEL CHAT (DESPLEGABLE) ── -->
+  <div *ngIf="chatAbierto" class="chat-ia-panel" role="dialog" aria-label="Asistente de Tareas IA">
+    
+    <!-- Cabecera de la Ventana Flotante -->
+    <div class="chat-ia-header">
+      <div class="header-info">
+        <span class="ia-dot"></span>
+        <span class="header-sub">Asistente de Tareas</span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Botón Limpiar Historial -->
+        <button
+          *ngIf="mensajesChat.length > 0"
+          type="button"
+          class="btn-header-accion"
+          (click)="limpiarHistorial()"
+          title="Limpiar conversación"
+          aria-label="Limpiar historial"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+
+        <!-- Botón Cerrar / Minimizar -->
+        <button
+          type="button"
+          class="btn-header-accion btn-cerrar"
+          (click)="cerrarChat()"
+          title="Cerrar asistente"
+          aria-label="Cerrar chat"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Contenedor con Scroll de Mensajes -->
+    <div #chatMessagesContainer class="chat-ia-mensajes">
+      
+      <!-- Estado Vacío -->
+      <div *ngIf="mensajesChat.length === 0" class="chat-vacio">
+        <div class="vacio-icono">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg>
+        </div>
+        <p class="vacio-texto">
+          ¡Hola! Soy tu asistente de diseño. Puedes pedirme por voz o texto tareas como:
+        </p>
+        <ul class="vacio-lista">
+          <li>"Crear tabla Proveedor con id y teléfono"</li>
+          <li>"Agregar atributo email a Cliente"</li>
+          <li>"Relacionar Cliente con Pedido"</li>
+        </ul>
+      </div>
+
+      <!-- Lista de Mensajes -->
+      <div
+        *ngFor="let msg of mensajesChat"
+        class="chat-burbuja"
+        [class.burbuja-usuario]="msg.remitente === 'usuario'"
+        [class.burbuja-asistente]="msg.remitente === 'asistente'"
+      >
+        <div class="burbuja-meta">
+          <span class="burbuja-autor">{{ msg.remitente === 'usuario' ? 'Tú' : 'Asistente' }}</span>
+          <span class="burbuja-hora">{{ msg.fecha | date:'shortTime' }}</span>
+        </div>
+        <div class="burbuja-cuerpo">
+          {{ msg.texto }}
+        </div>
+      </div>
+
+      <!-- Indicador de Carga / Procesando -->
+      <div *ngIf="cargandoInstruccion" class="chat-burbuja burbuja-asistente burbuja-cargando">
+        <div class="spinner-ia"></div>
+        <span>Interpretando instrucción...</span>
+      </div>
+    </div>
+
+    <!-- Barra de Entrada Inferior -->
+    <div class="chat-ia-input-bar">
+      
+      <!-- Banner de Grabación de Voz -->
+      <div *ngIf="escuchandoMicrofono" class="voz-banner">
+        <span class="voz-pulso"></span>
+        <span class="voz-texto">Escuchando... Di tu orden ahora</span>
+        <button type="button" class="btn-voz-terminar" (click)="detenerMicrofono()">Listo</button>
+      </div>
+
+      <!-- Caja de Entrada y Botones -->
+      <div class="input-contenedor">
+        <textarea
+          #chatInput
+          class="input-texto-ia"
+          [(ngModel)]="textoInstruccion"
+          placeholder="Ej: Crear tabla Producto con id y precio..."
+          rows="2"
+          [disabled]="cargandoInstruccion"
+          (keydown.enter)="onEnterInput($event)"
+        ></textarea>
+
+        <div class="input-botones">
+          <!-- Botón Micrófono -->
+          <button
+            type="button"
+            class="btn-accion-input btn-microfono"
+            [class.microfono-activo]="escuchandoMicrofono"
+            (click)="alternarMicrofono()"
+            [title]="escuchandoMicrofono ? 'Detener dictado' : 'Dictar por voz'"
+            [disabled]="cargandoInstruccion"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+          </button>
+
+          <!-- Botón Enviar -->
+          <button
+            type="button"
+            class="btn-accion-input btn-enviar"
+            (click)="enviarInstruccion()"
+            [disabled]="!textoInstruccion.trim() || cargandoInstruccion"
+            title="Enviar instrucción"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. BOTÓN FLOTANTE PRINCIPAL (FAB) ── -->
+  <button
+    type="button"
+    class="btn-fab-ia"
+    [class.fab-abierto]="chatAbierto"
+    [class.fab-grabando]="escuchandoMicrofono"
+    (click)="toggleChat()"
+    [title]="chatAbierto ? 'Minimizar asistente IA' : 'Abrir asistente IA (Chat y Voz)'"
+    aria-label="Abrir asistente de tareas IA"
+  >
+    <!-- Efecto Glow de Resplandor IA -->
+    <span class="fab-glow"></span>
+
+    <!-- Icono cuando está cerrado -->
+    <div *ngIf="!chatAbierto" class="fab-icono-content">
+      <svg class="icono-destello" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+      </svg>
+      <span class="fab-etiqueta">Copilot IA</span>
+    </div>
+
+    <!-- Icono cuando está abierto (Cerrar) -->
+    <div *ngIf="chatAbierto" class="fab-icono-content">
+      <svg class="icono-cerrar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </div>
+  </button>
+
+</div>

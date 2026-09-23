@@ -213,4 +213,18 @@ export class WhiteboardSocketService {
       this.socket$.next(mensaje);
     }
   }
+
+  private contadorSesion = 0;
+
+  /**
+   * Genera un identificador numérico negativo único para entidades, atributos o relaciones locales.
+   * Permite la sincronización optimista local hasta que el servidor devuelva los IDs definitivos.
+   */
+  public generarIdTemporal(): number {
+    this.contadorSesion++;
+    const delta = Date.now() - 1700000000000;
+    const user = this.tokenStorage.getUser();
+    const userSeed = user?.id ? (Math.abs(user.id) % 100) : Math.floor(Math.random() * 90 + 10);
+    return - (delta * 10000 + userSeed * 100 + (this.contadorSesion % 100));
+  }
 }

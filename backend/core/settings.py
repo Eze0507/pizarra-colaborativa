@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     # Aplicaciones del proyecto
     'usuario',
     'modelado',
+    'asistente',
+    'generador',
 ]
 
 MIDDLEWARE = [
@@ -191,5 +193,9 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# Google Gemini AI Assistant
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
 
 

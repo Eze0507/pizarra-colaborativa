@@ -144,10 +144,11 @@
           (click)="cambiarPestana('ia')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
           </svg>
-          <span>Asistente IA</span>
-          <span class="tab-chip">Pronto</span>
+          <span>Boceto IA</span>
         </button>
       </div>
 
@@ -187,129 +188,150 @@
             </div>
           </div>
 
-          <!-- Elemento 2: Nueva Clase de Asociación -->
-          <div 
-            class="toolbox-card card-asociacion"
-            draggable="true"
-            (dragstart)="onDragStart($event, 'clase_asociacion')"
-            (click)="agregarClaseAsociacion.emit()"
-            title="Crear relación Muchos a Muchos asistida"
-          >
-            <div class="card-icon icon-asociacion">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="6" cy="6" r="3"></circle>
-                <circle cx="18" cy="18" r="3"></circle>
-                <line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>
-                <line x1="12" y1="12" x2="17" y2="7" stroke-dasharray="2,2"></line>
-                <rect x="16" y="4" width="6" height="5" rx="1"></rect>
-              </svg>
-            </div>
-            <div class="card-info">
-              <span class="card-titulo">Clase Asociación</span>
-              <span class="card-desc">Enlace N:M con tabla puente</span>
-            </div>
-            <div class="card-action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </div>
-          </div>
-
-          <!-- Elemento 3: Notas / Comentarios Libres -->
-          <div 
-            class="toolbox-card card-nota"
-            draggable="true"
-            (dragstart)="onDragStart($event, 'nota')"
-            (click)="agregarNota.emit()"
-            title="Añadir un comentario o nota conceptual libre"
-          >
-            <div class="card-icon icon-nota">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-              </svg>
-            </div>
-            <div class="card-info">
-              <span class="card-titulo">Nota / Comentario</span>
-              <span class="card-desc">Texto descriptivo en el lienzo</span>
-            </div>
-            <div class="card-action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </div>
-          </div>
-
         </div>
       </div>
 
-      <!-- Contenido: Pestaña Asistente Virtual IA -->
+      <!-- Contenido: Pestaña Asistente Virtual IA (Boceto a Diagrama) -->
       <div *ngIf="pestanaActiva === 'ia'" class="panel-contenido panel-ia">
-        <div class="ia-banner">
-          <div class="ia-chip">
-            <span class="ia-dot"></span>
-            <span>Gemini IA Assistant</span>
+
+          <!-- Zona de Carga de Imagen -->
+          <div class="ia-seccion">
+            <input
+              #fileInput
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              (change)="onArchivoSeleccionado($event)"
+              style="display: none;"
+            />
+
+            <!-- Estado Sin Imagen: Dropzone -->
+            <div
+              *ngIf="!archivoSeleccionado"
+              class="ia-dropzone"
+              [class.dropzone-activa]="arrastrandoArchivo"
+              (dragover)="onDragOverArchivo($event)"
+              (dragleave)="onDragLeaveArchivo()"
+              (drop)="onDropArchivo($event)"
+              (click)="fileInput.click()"
+              role="button"
+              tabindex="0"
+            >
+              <div class="dropzone-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+              </div>
+              <span class="dropzone-titulo">Arrastra una foto o haz clic</span>
+              <span class="dropzone-sub">Boceto en papel o pizarra (JPG, PNG)</span>
+            </div>
+
+            <!-- Estado Con Imagen: Previsualización -->
+            <div *ngIf="archivoSeleccionado" class="ia-preview-box">
+              <div class="preview-img-container">
+                <img [src]="previsualizacionUrl" alt="Boceto cargado" class="preview-thumb" />
+                <button
+                  type="button"
+                  class="btn-eliminar-foto"
+                  (click)="limpiarImagen()"
+                  title="Quitar imagen"
+                  [disabled]="cargandoIa"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+              <div class="preview-info">
+                <span class="preview-nombre" [title]="archivoSeleccionado.name">{{ archivoSeleccionado.name }}</span>
+                <span class="preview-tamano">{{ (archivoSeleccionado.size / 1024 / 1024) | number:'1.1-2' }} MB (se optimizará)</span>
+              </div>
+            </div>
           </div>
-          <h3 class="ia-titulo">Asistencia Generativa</h3>
-          <p class="ia-sub">
-            Diseña, normaliza y optimiza tu base de datos con inteligencia artificial contextual.
-          </p>
+
+          <!-- Instrucciones Opcionales -->
+          <div class="ia-seccion">
+            <label class="ia-label-input" for="ia-instrucciones">
+              <span>Instrucciones opcionales</span>
+              <span class="ia-label-sub">Contexto extra opcional</span>
+            </label>
+            <textarea
+              id="ia-instrucciones"
+              [(ngModel)]="instruccionesIa"
+              placeholder="Ej: Un cliente puede tener múltiples pedidos..."
+              class="ia-textarea"
+              rows="2"
+              maxlength="300"
+              [disabled]="cargandoIa"
+            ></textarea>
+          </div>
+
+          <!-- Mensaje de Error -->
+          <div *ngIf="errorIa" class="ia-error-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ errorIa }}</span>
+          </div>
+
+          <!-- Botón de Acción Principal -->
+          <button
+            type="button"
+            class="btn-generar-ia"
+            [disabled]="!archivoSeleccionado || cargandoIa"
+            (click)="onGenerarDiagramaIA()"
+          >
+            <div *ngIf="cargandoIa" class="spinner-ia"></div>
+            <svg *ngIf="!cargandoIa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            <span>{{ cargandoIa ? mensajeEstadoIa : 'Generar Diagrama con IA' }}</span>
+          </button>
         </div>
 
-        <div class="ia-chat-preview">
-          <input 
-            type="text" 
-            disabled 
-            placeholder="Pregunta a Gemini sobre tu modelo..." 
-            class="ia-input-mock"
-          />
-          <span class="ia-badge-fase">Fase 2 en desarrollo</span>
-        </div>
       </div>
-
-    </div>
 
     <!-- ── 3. PIE DEL SIDEBAR (Acciones Globales) ── -->
     <footer class="sidebar-footer">
       
-      <!-- Botón Estrella: Generar Código (Spring Boot) -->
-      <button 
-        type="button" 
-        class="btn-cta-estrella" 
-        (click)="generarCodigo.emit()"
-        title="Generar entidades JPA y código Spring Boot automáticamente"
-      >
-        <div class="cta-glow"></div>
-        <div class="cta-content">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="16 18 22 12 16 6"></polyline>
-            <polyline points="8 6 2 12 8 18"></polyline>
-          </svg>
-          <div class="cta-text-group">
-            <span class="cta-principal">Generar Código</span>
-            <span class="cta-secundario">Spring Boot & JPA</span>
-          </div>
-        </div>
-        <span class="badge-fase-estrella">Pronto</span>
-      </button>
-
-      <!-- Botón Secundario: Exportar Imagen -->
+      <!-- Botón Secundario: Exportar XML (Enterprise Architect) -->
       <button 
         type="button" 
         class="btn-cta-secundario" 
-        (click)="exportarImagen.emit()"
-        title="Descargar diagrama como imagen PNG o archivo PDF"
+        (click)="exportarXml.emit()"
+        title="Exportar diagrama en formato XML 2.1 (OMG UML / XMI 2.1) para Enterprise Architect"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+        <span>Exportar XML (EA 2.1)</span>
+      </button>
+
+      <!-- Botón Secundario: Importar XML (Enterprise Architect) -->
+      <input 
+        #fileXmlInput 
+        type="file" 
+        accept=".xml,.xmi" 
+        (change)="onSeleccionarArchivoXml($event)" 
+        style="display: none;" 
+      />
+      <button 
+        type="button" 
+        class="btn-cta-secundario" 
+        (click)="fileXmlInput.click()"
+        title="Importar archivo XML 2.1 generado por Enterprise Architect"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
         </svg>
-        <span>Exportar Imagen (PNG/PDF)</span>
+        <span>Importar XML (EA 2.1)</span>
       </button>
 
       <div class="footer-divider"></div>
@@ -427,7 +449,7 @@
           class="rail-btn" 
           [class.rail-btn-active]="pestanaActiva === 'ia'"
           (click)="abrirEnPestana('ia')"
-          title="Asistente IA (Gemini)"
+          title="Asistente IA (Boceto a Diagrama)"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>

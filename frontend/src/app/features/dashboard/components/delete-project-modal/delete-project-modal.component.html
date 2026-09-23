@@ -1,0 +1,71 @@
+<div *ngIf="isOpen" class="modal-backdrop" (click)="close()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="warning-icon-wrapper">
+        <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+
+      <div class="modal-title-group">
+        <div class="title-with-badge">
+          <h2 class="modal-title">¿Eliminar proyecto?</h2>
+          <span *ngIf="proyecto?.codigo" class="code-badge">{{ proyecto?.codigo }}</span>
+        </div>
+        <p class="modal-subtitle">Esta acción es irreversible y eliminará todos los datos.</p>
+      </div>
+
+      <button type="button" class="btn-close" (click)="close()" [disabled]="isDeleting" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+      <div *ngIf="errorMessage" class="error-banner">
+        <svg class="error-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>{{ errorMessage }}</span>
+      </div>
+
+      <div class="warning-callout">
+        <p class="warning-message">
+          Estás a punto de eliminar de forma permanente el proyecto
+          <strong class="project-highlight">{{ proyecto?.nombre }}</strong>.
+        </p>
+        <p class="warning-detail">
+          Se borrarán definitivamente todas las entidades, atributos, tipos de datos, relaciones conceptuales y diagramas guardados en la base de datos. Ningún colaborador podrá volver a acceder a este espacio.
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <app-custom-button
+        type="button"
+        variant="secondary"
+        text="Cancelar"
+        (btnClick)="close()"
+        [disabled]="isDeleting"
+      ></app-custom-button>
+      <app-custom-button
+        type="button"
+        variant="danger"
+        text="Sí, eliminar proyecto"
+        loadingText="Eliminando..."
+        [loading]="isDeleting"
+        [disabled]="isDeleting"
+        (btnClick)="confirmDelete()"
+      ></app-custom-button>
+    </div>
+  </div>
+</div>

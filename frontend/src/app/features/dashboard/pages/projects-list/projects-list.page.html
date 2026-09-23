@@ -82,6 +82,7 @@
     <app-project-card
       *ngFor="let proyecto of filteredProyectos"
       [proyecto]="proyecto"
+      (delete)="openDeleteModal($event)"
     ></app-project-card>
   </div>
 
@@ -91,4 +92,12 @@
     (closed)="onModalClose()"
     (projectCreated)="onProjectCreated($event)"
   ></app-create-project-modal>
+
+  <!-- Modal para Confirmar Eliminación de Proyecto -->
+  <app-delete-project-modal
+    [isOpen]="isDeleteModalOpen"
+    [proyecto]="projectToDelete"
+    (closed)="onDeleteModalClose()"
+    (projectDeleted)="onProjectDeleted($event)"
+  ></app-delete-project-modal>
 </div>

@@ -45,3 +45,23 @@ export interface GuardarEditorPayload {
   valor: string;
   encadenar: boolean;
 }
+
+export interface GuardarEditorEvento {
+  tipo: TipoEditor;
+  valor: string;
+  encadenar: boolean;
+  entidadId: number | null;
+  atributoIndex: number | null;
+  relacionId: number | null;
+}
+
+export interface EventoContextualAccion {
+  tipo: 'entidad' | 'relacion';
+  id: number;
+}
+
+export interface EventoSeleccionCardinalidad {
+  relacionId: number;
+  extremo: 'origen' | 'destino';
+  valor: string;
+}

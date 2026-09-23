@@ -636,6 +636,14 @@ class PizarraConsumer(AsyncWebsocketConsumer):
                             real_clase_asoc_id = id_map.get(str(r_item['clase_asociacion_id']), int(r_item['clase_asociacion_id']))
                             r_item['clase_asociacion_id'] = real_clase_asoc_id
 
+                        # Resolver entidad intermedia si es clase de asociación
+                        ent_clase_asoc = None
+                        if r_item.get('clase_asociacion_id'):
+                            ent_clase_asoc = Entidad.objects.filter(
+                                id=r_item['clase_asociacion_id'],
+                                proyecto=proyecto
+                            ).first()
+
                         p_orig = r_item.get('puerto_origen') or ''
                         p_dest = r_item.get('puerto_destino') or ''
                         nom_rel = r_item.get('nombre_relacion') or ''
@@ -647,6 +655,7 @@ class PizarraConsumer(AsyncWebsocketConsumer):
                                 proyecto=proyecto,
                                 entidad_origen=ent_orig,
                                 entidad_destino=ent_dest,
+                                clase_asociacion=ent_clase_asoc,
                                 nombre_relacion=nom_rel,
                                 tipo=tipo,
                                 cardinalidad_origen=card_orig,
@@ -666,6 +675,7 @@ class PizarraConsumer(AsyncWebsocketConsumer):
                             if rel_obj:
                                 rel_obj.entidad_origen = ent_orig
                                 rel_obj.entidad_destino = ent_dest
+                                rel_obj.clase_asociacion = ent_clase_asoc
                                 rel_obj.nombre_relacion = nom_rel
                                 rel_obj.tipo = tipo
                                 rel_obj.cardinalidad_origen = card_orig
@@ -680,6 +690,7 @@ class PizarraConsumer(AsyncWebsocketConsumer):
                                     proyecto=proyecto,
                                     entidad_origen=ent_orig,
                                     entidad_destino=ent_dest,
+                                    clase_asociacion=ent_clase_asoc,
                                     nombre_relacion=nom_rel,
                                     tipo=tipo,
                                     cardinalidad_origen=card_orig,

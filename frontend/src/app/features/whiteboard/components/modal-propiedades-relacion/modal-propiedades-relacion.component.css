@@ -377,6 +377,28 @@
   box-shadow: 0 0 14px rgba(0, 163, 255, 0.55);
 }
 
+.btn-peligro {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-peligro:hover {
+  background-color: #EF4444;
+  color: #FFFFFF;
+  border-color: #EF4444;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.btn-peligro svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Modo Claro */
 :host-context(.whiteboard-root:not(.modo-oscuro)) .modal-card {
   background-color: #FFFFFF;

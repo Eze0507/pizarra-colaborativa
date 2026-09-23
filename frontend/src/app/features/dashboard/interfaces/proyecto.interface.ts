@@ -23,6 +23,7 @@ export interface Proyecto {
   fecha_creacion: string;
   fecha_actualizacion: string;
   propietario: UserSimple;
+  es_propietario?: boolean;
   colaboradores_detalle: ColaboradorDetalle[];
 }
 

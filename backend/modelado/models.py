@@ -217,6 +217,14 @@ class Relacion(models.Model):
         related_name='relaciones_destino',
         help_text="Entidad destino de la relación."
     )
+    clase_asociacion = models.ForeignKey(
+        Entidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='relaciones_asociadas',
+        help_text="Entidad intermedia vinculada si la relación es N:M o clase de asociación."
+    )
     nombre_relacion = models.CharField(
         max_length=150,
         blank=True,

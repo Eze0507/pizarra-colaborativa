@@ -34,6 +34,7 @@ class ProyectoDetailSerializer(serializers.ModelSerializer):
     """
     propietario = UserSimpleSerializer(read_only=True)
     colaboradores_detalle = ColaboradorDetalleSerializer(many=True, read_only=True)
+    es_propietario = serializers.SerializerMethodField()
 
     class Meta:
         model = Proyecto
@@ -48,7 +49,14 @@ class ProyectoDetailSerializer(serializers.ModelSerializer):
             'fecha_actualizacion',
             'propietario',
             'colaboradores_detalle',
+            'es_propietario',
         )
+
+    def get_es_propietario(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.propietario_id == request.user.id
+        return False
 
 
 class ProyectoCreateSerializer(serializers.ModelSerializer):
@@ -281,6 +289,7 @@ class RelacionDiagramaSerializer(serializers.ModelSerializer):
     """
     entidad_origen_id = serializers.IntegerField(source='entidad_origen.id')
     entidad_destino_id = serializers.IntegerField(source='entidad_destino.id')
+    clase_asociacion_id = serializers.IntegerField(source='clase_asociacion.id', allow_null=True, read_only=True)
 
     class Meta:
         model = Relacion
@@ -290,9 +299,30 @@ class RelacionDiagramaSerializer(serializers.ModelSerializer):
             'tipo',
             'entidad_origen_id',
             'entidad_destino_id',
+            'clase_asociacion_id',
             'cardinalidad_origen',
             'cardinalidad_destino',
             'puerto_origen',
             'puerto_destino'
         )
+
+
+class InvitacionPendienteSerializer(serializers.ModelSerializer):
+    """
+    Serializer para consultar las invitaciones pendientes recibidas por un usuario.
+    """
+    proyecto = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserColaborador
+        fields = ('id', 'proyecto', 'rol', 'estado', 'fecha_ingreso')
+
+    def get_proyecto(self, obj):
+        return {
+            'id': obj.proyecto.id,
+            'codigo': obj.proyecto.codigo,
+            'nombre': obj.proyecto.nombre,
+            'descripcion': obj.proyecto.descripcion,
+            'propietario': UserSimpleSerializer(obj.proyecto.propietario).data
+        }
 

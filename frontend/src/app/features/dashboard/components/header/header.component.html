@@ -5,14 +5,110 @@
   </div>
 
   <div class="header-actions">
-    <!-- Botón de Notificaciones -->
-    <button type="button" class="btn-notification" aria-label="Notificaciones" title="Notificaciones">
-      <svg class="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-      </svg>
-      <span class="notification-indicator"></span>
-    </button>
+    <!-- Contenedor de Notificaciones con Dropdown Flotante -->
+    <div class="notif-wrapper">
+      <button
+        type="button"
+        class="btn-notification"
+        [class.active]="isPopoverOpen"
+        (click)="toggleNotificaciones()"
+        aria-label="Notificaciones"
+        title="Notificaciones de invitaciones"
+      >
+        <svg class="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <ng-container *ngIf="conteo$ | async as conteo">
+          <span *ngIf="conteo > 0" class="notification-badge">
+            {{ conteo > 9 ? '9+' : conteo }}
+          </span>
+        </ng-container>
+      </button>
+
+      <!-- Telón de fondo invisible para cerrar al hacer clic afuera -->
+      <div class="notif-backdrop" *ngIf="isPopoverOpen" (click)="cerrarNotificaciones()"></div>
+
+      <!-- Menú Desplegable de Invitaciones -->
+      <div class="notif-popover" *ngIf="isPopoverOpen">
+        <div class="popover-header">
+          <div class="popover-title-group">
+            <h3 class="popover-title">Invitaciones</h3>
+            <ng-container *ngIf="conteo$ | async as conteo">
+              <span *ngIf="conteo > 0" class="popover-badge">{{ conteo }} nueva{{ conteo > 1 ? 's' : '' }}</span>
+            </ng-container>
+          </div>
+          <button type="button" class="btn-popover-close" (click)="cerrarNotificaciones()" aria-label="Cerrar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="popover-body">
+          <ng-container *ngIf="invitaciones$ | async as invitaciones">
+            <!-- Estado Vacío -->
+            <div *ngIf="invitaciones.length === 0" class="notif-empty">
+              <div class="notif-empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+              </div>
+              <p class="empty-title">Sin invitaciones pendientes</p>
+              <p class="empty-desc">Cuando otros diseñadores te inviten a colaborar en un proyecto, aparecerán aquí para que te unas al instante.</p>
+            </div>
+
+            <!-- Lista de Tarjetas de Invitación -->
+            <div *ngIf="invitaciones.length > 0" class="notif-list">
+              <div *ngFor="let inv of invitaciones" class="inv-card">
+                <div class="inv-card-header">
+                  <div class="inv-avatar" [title]="inv.proyecto.propietario.username">
+                    {{ inv.proyecto.propietario.username.slice(0, 1).toUpperCase() }}
+                  </div>
+                  <div class="inv-meta">
+                    <p class="inv-msg">
+                      <span class="inv-author">{{ inv.proyecto.propietario.username }}</span>
+                      te invitó a colaborar en:
+                    </p>
+                    <h4 class="inv-project-name">{{ inv.proyecto.nombre }}</h4>
+                    <div class="inv-badges-row">
+                      <span class="inv-code">{{ inv.proyecto.codigo }}</span>
+                      <span class="inv-role-tag">{{ inv.rol }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="inv-card-actions">
+                  <button
+                    type="button"
+                    class="btn-inv-rechazar"
+                    (click)="rechazar(inv)"
+                    [disabled]="procesandoId === inv.id"
+                  >
+                    Rechazar
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn-inv-aceptar"
+                    (click)="aceptar(inv)"
+                    [disabled]="procesandoId === inv.id"
+                  >
+                    <span *ngIf="procesandoId === inv.id" class="btn-spinner"></span>
+                    <svg *ngIf="procesandoId !== inv.id" class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>{{ procesandoId === inv.id ? 'Aceptando...' : 'Aceptar invitación' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
 
     <!-- Perfil de Usuario -->
     <div class="user-profile">

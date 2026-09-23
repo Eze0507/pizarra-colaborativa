@@ -1,3 +1,10 @@
+.menu-relacion-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background-color: transparent;
+}
+
 .menu-relacion-flotante {
   position: absolute;
   z-index: 60;

@@ -1,6 +1,7 @@
 from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
@@ -14,6 +15,7 @@ from .serializers import (
     EntidadDiagramaSerializer,
     RelacionDiagramaSerializer,
     ColaboradorDetalleSerializer,
+    InvitacionPendienteSerializer,
 )
 
 
@@ -59,6 +61,11 @@ class ProyectoDetailView(generics.RetrieveUpdateDestroyAPIView):
             Q(propietario=user) |
             Q(colaboradores_detalle__usuario=user, colaboradores_detalle__estado=UserColaborador.Estado.ACTIVO)
         ).distinct()
+
+    def perform_destroy(self, instance):
+        if instance.propietario != self.request.user:
+            raise PermissionDenied("Solo el propietario puede eliminar este proyecto.")
+        instance.delete()
 
 
 class InvitarColaboradorView(APIView):
@@ -325,5 +332,87 @@ class ColaboradorEliminarView(APIView):
 
         return Response({
             "detail": f"Colaborador '{username}' eliminado exitosamente del proyecto."
+        }, status=status.HTTP_200_OK)
+
+
+class InvitacionesPendientesListView(generics.ListAPIView):
+    """
+    Endpoint para listar las invitaciones pendientes recibidas por el usuario autenticado.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = InvitacionPendienteSerializer
+
+    def get_queryset(self):
+        return UserColaborador.objects.filter(
+            usuario=self.request.user,
+            estado=UserColaborador.Estado.PENDIENTE
+        ).select_related('proyecto', 'proyecto__propietario').order_by('-fecha_ingreso')
+
+
+class AceptarInvitacionDirectaView(APIView):
+    """
+    Endpoint para aceptar una invitación directamente desde la plataforma (sin usar token de correo).
+    Actualiza el estado a 'activo' con rol 'editor'.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        colaboracion = get_object_or_404(
+            UserColaborador.objects.select_related('proyecto', 'usuario'),
+            pk=pk,
+            usuario=request.user
+        )
+
+        if colaboracion.estado == UserColaborador.Estado.ACTIVO:
+            return Response(
+                {"detail": f"Ya eres colaborador activo del proyecto '{colaboracion.proyecto.nombre}'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        colaboracion.estado = UserColaborador.Estado.ACTIVO
+        colaboracion.rol = UserColaborador.Rol.EDITOR
+        colaboracion.save()
+
+        return Response({
+            "detail": f"¡Invitación aceptada! Ahora eres editor del proyecto '{colaboracion.proyecto.nombre}'.",
+            "proyecto": {
+                "id": colaboracion.proyecto.id,
+                "codigo": colaboracion.proyecto.codigo,
+                "nombre": colaboracion.proyecto.nombre,
+            },
+            "colaborador": {
+                "id": colaboracion.id,
+                "username": colaboracion.usuario.username,
+                "rol": colaboracion.rol,
+                "estado": colaboracion.estado,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class RechazarInvitacionDirectaView(APIView):
+    """
+    Endpoint para rechazar una invitación pendiente recibida.
+    Elimina el registro de UserColaborador.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        colaboracion = get_object_or_404(
+            UserColaborador.objects.select_related('proyecto'),
+            pk=pk,
+            usuario=request.user
+        )
+
+        if colaboracion.estado != UserColaborador.Estado.PENDIENTE:
+            return Response(
+                {"detail": "Solo se pueden rechazar invitaciones en estado pendiente."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        nombre_proyecto = colaboracion.proyecto.nombre
+        colaboracion.delete()
+
+        return Response({
+            "detail": f"Has rechazado la invitación al proyecto '{nombre_proyecto}'."
         }, status=status.HTTP_200_OK)
 

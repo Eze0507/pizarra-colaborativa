@@ -21,6 +21,10 @@ import { WhiteboardEntityService } from '../../services/whiteboard-entity.servic
 import { WhiteboardRelationshipService } from '../../services/whiteboard-relationship.service';
 import { WhiteboardCameraService } from '../../services/whiteboard-camera.service';
 import { DiagramaParserService } from '../../services/diagrama-parser.service';
+import { AsistenteIaService } from '../../services/asistente-ia.service';
+import { GeneradorService } from '../../services/generador.service';
+import { RespuestaImportacionXML } from '../../interfaces/generador.interface';
+
 import { SidebarPizarraComponent } from '../../components/sidebar-pizarra/sidebar-pizarra.component';
 import { ControlesZoomComponent } from '../../components/controles-zoom/controles-zoom.component';
 import { MenuRelacionComponent } from '../../components/menu-relacion/menu-relacion.component';
@@ -33,14 +37,15 @@ import {
   GuardarPropiedadesRelacionPayload
 } from '../../components/modal-propiedades-relacion/modal-propiedades-relacion.component';
 import { ModalColaboradoresComponent } from '../../components/modal-colaboradores/modal-colaboradores.component';
+import { ChatAsistenteIaComponent } from '../../components/chat-asistente-ia/chat-asistente-ia.component';
 import { ToastContainerComponent } from '../../../../shared/components/toast-container/toast-container.component';
 import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { TokenStorageService } from '../../../../core/services/token-storage.service';
+
 import {
   DiagramaCargaInicial,
   EntidadDiagrama,
-  AtributoDiagrama,
   RelacionDiagrama,
   ProyectoDiagrama,
   EstadoConexion,
@@ -48,13 +53,16 @@ import {
   MensajeWS
 } from '../../interfaces/diagrama.interface';
 import {
-  OpcionRelacion,
   TipoRelacionUML,
-  CardinalidadEditando,
-  PosicionEditor,
-  TipoEditor,
-  GuardarEditorPayload
+  GuardarEditorEvento,
+  EventoContextualAccion,
+  EventoSeleccionCardinalidad
 } from '../../interfaces/whiteboard-ui.interface';
+import {
+  DiagramaGeneradoPayload,
+  ContextoDiagramaIA,
+  DeltaInstruccionIARespuesta
+} from '../../interfaces/asistente-ia.interface';
 
 @Component({
   selector: 'app-whiteboard-page',
@@ -62,6 +70,7 @@ import {
   imports: [
     CommonModule,
     SidebarPizarraComponent,
+    ChatAsistenteIaComponent,
     ControlesZoomComponent,
     MenuRelacionComponent,
     MenuCardinalidadComponent,
@@ -84,20 +93,21 @@ import {
 export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('lienzo', { static: true }) private lienzoRef!: ElementRef<HTMLDivElement>;
 
-  private readonly route         = inject(ActivatedRoute);
-  private readonly router        = inject(Router);
-  private readonly apiService    = inject(WhiteboardApiService);
-  private readonly socketService = inject(WhiteboardSocketService);
-  public  readonly canvasService = inject(WhiteboardCanvasService);
-  private readonly parserService = inject(DiagramaParserService);
-  private readonly authService   = inject(AuthService);
-  private readonly tokenStorage  = inject(TokenStorageService);
-  private readonly toastService  = inject(ToastNotificationService);
-  private readonly cdr           = inject(ChangeDetectorRef);
+  private readonly route             = inject(ActivatedRoute);
+  private readonly router            = inject(Router);
+  private readonly apiService        = inject(WhiteboardApiService);
+  public  readonly socketService     = inject(WhiteboardSocketService);
+  public  readonly canvasService     = inject(WhiteboardCanvasService);
+  private readonly asistenteIaService = inject(AsistenteIaService);
+  private readonly parserService     = inject(DiagramaParserService);
+  private readonly authService       = inject(AuthService);
+  private readonly tokenStorage      = inject(TokenStorageService);
+  private readonly toastService      = inject(ToastNotificationService);
+  private readonly generadorService  = inject(GeneradorService);
+  private readonly cdr               = inject(ChangeDetectorRef);
 
   private miUsuarioId: number | null = null;
   private proyectoId = 0;
-  private contadorSesion = 0;
   private subscriptions = new Subscription();
   private entidadesPendientes: EntidadDiagrama[] = [];
   private relacionesPendientes: RelacionDiagrama[] = [];
@@ -112,30 +122,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public modoOscuro = false;
   public zoomNivel = 100;
 
-  // ── Estado de Editores y Modales Flotantes ──
-  public editorActivo = false;
-  public editorTipo: TipoEditor = 'nombre';
-  public editorValor = '';
-  public editorPlaceholder = '';
-  public editorPos: PosicionEditor = { x: 0, y: 0, w: 0, h: 0 };
-  private editorEntidadId: number | null = null;
-  private editorAtributoIndex: number | null = null;
-  private editorRelacionId: number | null = null;
-
-  public menuRelacionActivo = false;
-  public menuRelacionPos = { x: 0, y: 0 };
-
-  public menuCardinalidadActivo = false;
-  public menuCardinalidadPos = { x: 0, y: 0 };
-  public cardinalidadEditando: CardinalidadEditando | null = null;
-
-  // ── Estado Menú Contextual y Modales de Propiedades ──
-  public menuContextualActivo = false;
-  public menuContextualPos: { x: number; y: number } = { x: 0, y: 0 };
-  public menuContextualTipo: 'entidad' | 'relacion' = 'entidad';
-  public menuContextualId: number | null = null;
-  public menuContextualTitulo = '';
-
+  // ── Estado Modales de Propiedades y Colaboradores ──
   public modalEntidadActivo = false;
   public entidadEditando: EntidadDiagrama | null = null;
 
@@ -145,16 +132,6 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public relacionNombreDestino = 'Destino';
 
   public modalColaboradoresActivo = false;
-
-  public readonly OPCIONES_CARDINALIDAD: string[] = ['1', '0..1', '1..*', '0..*', '*'];
-  public readonly TIPOS_BACKEND: AtributoDiagrama['tipo'][] = ['string', 'integer', 'long', 'double', 'boolean', 'date'];
-  public readonly OPCIONES_RELACIONES: OpcionRelacion[] = [
-    { tipo: 'asociacion', nombre: 'Asociación', subtitulo: 'Línea sólida continua entre tablas', svgIcon: 'asociacion' },
-    { tipo: 'agregacion', nombre: 'Agregación', subtitulo: 'Contenedor débil (rombo hueco)', svgIcon: 'agregacion' },
-    { tipo: 'composicion', nombre: 'Composición', subtitulo: 'Contenedor fuerte (rombo lleno)', svgIcon: 'composicion' },
-    { tipo: 'herencia', nombre: 'Herencia (Generalización)', subtitulo: 'Especialización de tablas', svgIcon: 'herencia' },
-    { tipo: 'clase_asociacion', nombre: 'Clase de Asociación (N:M)', subtitulo: 'Enlace principal sólido (0..* a 0..*) con clase flotante punteada', svgIcon: 'clase_asociacion' }
-  ];
 
   // ── Ciclo de Vida ──
 
@@ -214,47 +191,12 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
           this.isLoading = false;
           this.cdr.detectChanges();
 
-          const snapshotRelaciones = (datos.proyecto?.datos_diagrama as Record<string, unknown>)?.['relaciones'] as RelacionDiagrama[] | undefined;
-          const snapshotMap = new Map<number, RelacionDiagrama>();
-          if (snapshotRelaciones && Array.isArray(snapshotRelaciones)) {
-            snapshotRelaciones.forEach(r => snapshotMap.set(r.id, r));
-          }
-
-          const relacionesFinales: RelacionDiagrama[] = [];
-          const idsAgregados = new Set<number>();
-
-          (datos.relaciones || []).forEach(r => {
-            const deSnapshot = snapshotMap.get(r.id);
-            const tipo = r.tipo;
-            idsAgregados.add(r.id);
-            relacionesFinales.push({
-              ...r,
-              nombre_relacion: r.nombre_relacion || deSnapshot?.nombre_relacion || '',
-              clase_asociacion_id: r.clase_asociacion_id ?? deSnapshot?.clase_asociacion_id ?? null,
-              puerto_origen: r.puerto_origen || deSnapshot?.puerto_origen,
-              puerto_destino: r.puerto_destino || deSnapshot?.puerto_destino,
-              vertices: r.vertices ?? deSnapshot?.vertices ?? [],
-              cardinalidad_origen: r.cardinalidad_origen || deSnapshot?.cardinalidad_origen || (tipo !== 'herencia' ? '1' : ''),
-              cardinalidad_destino: r.cardinalidad_destino || deSnapshot?.cardinalidad_destino || (tipo !== 'herencia' ? '0..*' : ''),
-              origen_bloqueado: r.origen_bloqueado ?? deSnapshot?.origen_bloqueado ?? (tipo === 'composicion')
-            });
-          });
-
-          if (snapshotRelaciones && Array.isArray(snapshotRelaciones)) {
-            snapshotRelaciones.forEach(r => {
-              if (r && r.id && !idsAgregados.has(r.id)) {
-                idsAgregados.add(r.id);
-                relacionesFinales.push(r);
-              }
-            });
-          }
-
           if (this.canvasService.estaListo) {
             this.canvasService.renderizarEntidades(datos.entidades);
-            this.canvasService.renderizarRelaciones(relacionesFinales);
+            this.canvasService.renderizarRelaciones(datos.relaciones);
           } else {
             this.entidadesPendientes = datos.entidades;
-            this.relacionesPendientes = relacionesFinales;
+            this.relacionesPendientes = datos.relaciones;
           }
 
           this.socketService.conectar(this.proyectoId);
@@ -300,20 +242,6 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
         if (accion === 'snapshot_guardado') {
           if (msg.id_map || msg.rel_id_map) {
             this.canvasService.actualizarIdsSincronizados(msg.id_map, msg.rel_id_map);
-
-            if (this.editorEntidadId !== null && msg.id_map && msg.id_map[this.editorEntidadId] !== undefined) {
-              this.editorEntidadId = msg.id_map[this.editorEntidadId];
-            }
-            if (this.editorRelacionId !== null && msg.rel_id_map && msg.rel_id_map[this.editorRelacionId] !== undefined) {
-              this.editorRelacionId = msg.rel_id_map[this.editorRelacionId];
-            }
-            if (this.menuContextualId !== null) {
-              if (this.menuContextualTipo === 'entidad' && msg.id_map && msg.id_map[this.menuContextualId] !== undefined) {
-                this.menuContextualId = msg.id_map[this.menuContextualId];
-              } else if (this.menuContextualTipo === 'relacion' && msg.rel_id_map && msg.rel_id_map[this.menuContextualId] !== undefined) {
-                this.menuContextualId = msg.rel_id_map[this.menuContextualId];
-              }
-            }
           }
           return;
         }
@@ -335,11 +263,11 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
             break;
           case 'bloquear_entidad':
           case 'entidad_bloqueada':
-            this.canvasService.cambiarBorde(msg.entidad_id, this.canvasService.tema.bloqueadoBorde);
+            this.canvasService.setBloqueoEntidad(msg.entidad_id, true);
             break;
           case 'desbloquear_entidad':
           case 'entidad_desbloqueada':
-            this.canvasService.cambiarBorde(msg.entidad_id, this.canvasService.tema.entidadBorde);
+            this.canvasService.setBloqueoEntidad(msg.entidad_id, false);
             break;
           case 'crear_entidad':
           case 'entidad_creada':
@@ -371,22 +299,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private suscribirEventosCanvas(): void {
-    this.subscriptions.add(this.canvasService.zoomNivel$.subscribe(nivel => { this.zoomNivel = nivel; this.cdr.detectChanges(); }));
-    this.subscriptions.add(this.canvasService.solicitudRelacion$.subscribe(ev => {
-      this.menuRelacionPos = ev.pos;
-      this.menuRelacionActivo = true;
-      this.cdr.detectChanges();
-    }));
-    this.subscriptions.add(this.canvasService.solicitudCardinalidad$.subscribe(ev => {
-      this.cardinalidadEditando = { relacionId: ev.relacionId, extremo: ev.extremo, valorActual: ev.valorActual };
-      this.menuCardinalidadPos = ev.pos;
-      this.menuCardinalidadActivo = true;
-      this.cdr.detectChanges();
-    }));
-    this.subscriptions.add(this.canvasService.solicitudEditorNombre$.subscribe(id => this.abrirEditorNombre(id)));
-    this.subscriptions.add(this.canvasService.solicitudEditorNuevoAtributo$.subscribe(id => this.abrirEditorNuevoAtributo(id)));
-    this.subscriptions.add(this.canvasService.solicitudEditorAtributo$.subscribe(ev => this.abrirEditorAtributo(ev.entidadId, ev.index)));
-    this.subscriptions.add(this.canvasService.solicitudEditorNombreRelacion$.subscribe(ev => this.abrirEditorNombreRelacion(ev.relacionId, ev.pos)));
+    this.subscriptions.add(this.canvasService.zoomNivel$.subscribe(nivel => { this.zoomNivel = nivel; this.cdr.markForCheck(); }));
     this.subscriptions.add(this.canvasService.solicitudActualizarRelacion$.subscribe(rel => {
       this.socketService.enviarActualizarRelacion(rel);
       this.programarSnapshot();
@@ -399,155 +312,71 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
       this.programarSnapshot();
     }));
     this.subscriptions.add(this.canvasService.desbloquearEntidadLocal$.subscribe(id => this.socketService.enviarDesbloquearEntidad(id)));
-    this.subscriptions.add(this.canvasService.solicitudMenuContextual$.subscribe(ev => {
-      this.menuContextualTipo = ev.tipo;
-      this.menuContextualId = ev.id;
-      this.menuContextualTitulo = ev.titulo;
-      this.menuContextualPos = ev.pos;
-      this.menuContextualActivo = true;
-      this.cdr.detectChanges();
-    }));
     this.subscriptions.add(this.canvasService.snapshotRequerido$.subscribe(() => this.programarSnapshot()));
     this.subscriptions.add(this.canvasService.cerrarModales$.subscribe(() => this.cerrarTodosModales()));
   }
 
-  // ── Modales y Editores ──
+  // ── Guardado de Editor Inline ──
 
-  private abrirEditorNombreRelacion(relacionId: number, pos: PosicionEditor): void {
-    const relacion = this.canvasService.getRelacion(relacionId);
-    if (!relacion) return;
-    this.editorEntidadId = null;
-    this.editorAtributoIndex = null;
-    this.editorRelacionId = relacionId;
-    this.editorTipo = 'nombre_relacion';
-    this.editorValor = relacion.nombre_relacion || '';
-    this.editorPlaceholder = 'nombre_relacion';
-    this.editorPos = pos;
-    this.editorActivo = true;
-    this.cdr.detectChanges();
-  }
-
-  private abrirEditorNombre(entidadId: number): void {
-    const pos = this.canvasService.obtenerPosicionEditorNombre(entidadId);
-    const entidad = this.canvasService.getEntidad(entidadId);
-    if (!pos || !entidad) return;
-    this.editorRelacionId = null;
-    this.editorEntidadId = entidadId;
-    this.editorTipo = 'nombre';
-    this.editorAtributoIndex = null;
-    this.editorValor = entidad.nombre || '';
-    this.editorPlaceholder = 'Escribir nombre de entidad...';
-    this.editorPos = pos;
-    this.editorActivo = true;
-    this.cdr.detectChanges();
-  }
-
-  private abrirEditorNuevoAtributo(entidadId: number): void {
-    const pos = this.canvasService.obtenerPosicionEditorNuevoAtributo(entidadId);
-    if (!pos) return;
-    this.editorRelacionId = null;
-    this.editorEntidadId = entidadId;
-    this.editorTipo = 'nuevo_atributo';
-    this.editorAtributoIndex = null;
-    this.editorValor = '';
-    this.editorPlaceholder = 'Ej: id: integer [pk] o nombre: string';
-    this.editorPos = pos;
-    this.editorActivo = true;
-    this.cdr.detectChanges();
-  }
-
-  private abrirEditorAtributo(entidadId: number, index: number): void {
-    const pos = this.canvasService.obtenerPosicionEditorAtributo(entidadId, index);
-    const entidad = this.canvasService.getEntidad(entidadId);
-    if (!pos || !entidad?.atributos?.[index]) return;
-    const attr = entidad.atributos[index];
-    this.editorRelacionId = null;
-    this.editorEntidadId = entidadId;
-    this.editorTipo = 'editar_atributo';
-    this.editorAtributoIndex = index;
-    const pkStr = attr.es_clave ? '[pk] ' : '';
-    const optStr = attr.es_nulo ? '?' : '';
-    this.editorValor = `${pkStr}${attr.nombre}: ${attr.tipo}${optStr}`;
-    this.editorPlaceholder = 'Ej: nombre: string (vacío para eliminar)';
-    this.editorPos = pos;
-    this.editorActivo = true;
-    this.cdr.detectChanges();
-  }
-
-  public onGuardarEditor(payload: GuardarEditorPayload): void {
-    if (!this.editorActivo) return;
-
-    if (this.editorTipo === 'nombre_relacion' && this.editorRelacionId !== null) {
-      const relId = this.editorRelacionId;
-      const valor = payload.valor.trim();
-      const relActualizada = this.canvasService.actualizarNombreRelacion(relId, valor);
+  public onGuardarEditor(evento: GuardarEditorEvento): void {
+    if (evento.tipo === 'nombre_relacion' && evento.relacionId !== null) {
+      const relActualizada = this.canvasService.actualizarNombreRelacion(evento.relacionId, evento.valor);
       if (relActualizada) {
         this.socketService.enviarActualizarRelacion(relActualizada);
         this.programarSnapshot();
       }
-      this.onCancelarEditor();
       return;
     }
 
-    if (this.editorEntidadId === null) return;
-    const entidad = this.canvasService.getEntidad(this.editorEntidadId);
+    if (evento.entidadId === null) return;
+    const entidad = this.canvasService.getEntidad(evento.entidadId);
     if (!entidad) return;
 
     let encadenarSiguiente = false;
-    const valor = payload.valor.trim();
+    const valor = evento.valor;
 
-    if (this.editorTipo === 'nombre') {
+    if (evento.tipo === 'nombre') {
       entidad.nombre = valor;
-      this.editorValor = valor;
       this.canvasService.actualizarEntidadLocal(entidad);
       this.socketService.enviarActualizarEntidad(entidad);
-      if (payload.encadenar && valor.length > 0 && (!entidad.atributos || entidad.atributos.length === 0)) {
+      if (evento.encadenar && valor.length > 0 && (!entidad.atributos || entidad.atributos.length === 0)) {
         encadenarSiguiente = true;
       }
-    } else if (this.editorTipo === 'nuevo_atributo' && valor.length > 0) {
+    } else if (evento.tipo === 'nuevo_atributo' && valor.length > 0) {
       const nuevoOrden = (entidad.atributos?.length ?? 0) + 1;
-      const nuevoAttr = this.parserService.parsearAtributoTexto(valor, nuevoOrden, this.generarIdTemporal());
+      const nuevoAttr = this.parserService.parsearAtributoTexto(valor, nuevoOrden, this.socketService.generarIdTemporal());
       if (!entidad.atributos) entidad.atributos = [];
       entidad.atributos.push(nuevoAttr);
       this.canvasService.actualizarEntidadLocal(entidad);
       this.socketService.enviarActualizarEntidad(entidad);
-      encadenarSiguiente = payload.encadenar;
-    } else if (this.editorTipo === 'editar_atributo' && this.editorAtributoIndex !== null && entidad.atributos) {
+      encadenarSiguiente = evento.encadenar;
+    } else if (evento.tipo === 'editar_atributo' && evento.atributoIndex !== null && entidad.atributos) {
       if (valor.length > 0) {
-        const actual = entidad.atributos[this.editorAtributoIndex];
-        entidad.atributos[this.editorAtributoIndex] = this.parserService.parsearAtributoTexto(valor, actual.orden, actual.id);
+        const actual = entidad.atributos[evento.atributoIndex];
+        entidad.atributos[evento.atributoIndex] = this.parserService.parsearAtributoTexto(valor, actual.orden, actual.id);
       } else {
-        entidad.atributos.splice(this.editorAtributoIndex, 1);
+        entidad.atributos.splice(evento.atributoIndex, 1);
         entidad.atributos.forEach((a, i) => a.orden = i + 1);
       }
       this.canvasService.actualizarEntidadLocal(entidad);
       this.socketService.enviarActualizarEntidad(entidad);
     }
 
-    const entidadId = this.editorEntidadId;
-    this.onCancelarEditor();
     this.programarSnapshot();
 
-    if (encadenarSiguiente) {
-      setTimeout(() => this.abrirEditorNuevoAtributo(entidadId), 40);
+    if (encadenarSiguiente && evento.entidadId !== null) {
+      setTimeout(() => this.canvasService.solicitudEditorNuevoAtributo$.next(evento.entidadId!), 40);
     }
   }
 
-  public onCancelarEditor(): void {
-    this.editorActivo = false;
-    this.editorEntidadId = null;
-    this.editorAtributoIndex = null;
-    this.editorRelacionId = null;
-    this.editorValor = '';
-    this.cdr.detectChanges();
-  }
+  // ── Selección de Relación y Cardinalidad ──
 
   public confirmarTipoRelacion(tipo: TipoRelacionUML): void {
     const res = this.canvasService.confirmarTipoRelacion(
       tipo,
-      this.generarIdTemporal(),
-      this.generarIdTemporal(),
-      this.generarIdTemporal()
+      this.socketService.generarIdTemporal(),
+      this.socketService.generarIdTemporal(),
+      this.socketService.generarIdTemporal()
     );
     if (res) {
       if (res.entidadIntermedia) {
@@ -558,51 +387,31 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
       }
       this.programarSnapshot();
     }
-    this.cancelarMenuRelacion();
   }
 
-  public cancelarMenuRelacion(): void {
-    this.canvasService.cancelarRelacionPendiente();
-    this.menuRelacionActivo = false;
-    this.cdr.detectChanges();
-  }
-
-  public seleccionarCardinalidad(valor: string): void {
-    if (!this.cardinalidadEditando) return;
+  public seleccionarCardinalidad(ev: EventoSeleccionCardinalidad): void {
     const relActualizada = this.canvasService.aplicarCardinalidad(
-      this.cardinalidadEditando.relacionId,
-      this.cardinalidadEditando.extremo,
-      valor
+      ev.relacionId,
+      ev.extremo,
+      ev.valor
     );
     if (relActualizada) {
       this.socketService.enviarActualizarRelacion(relActualizada);
       this.programarSnapshot();
     }
-    this.cerrarSelectorCardinalidad();
   }
 
-  public cerrarSelectorCardinalidad(): void {
-    this.menuCardinalidadActivo = false;
-    this.cardinalidadEditando = null;
-    this.canvasService.deseleccionarCapsula();
-    this.cdr.detectChanges();
-  }
+  // ── Manejo de Menú Contextual ──
 
-  // ── Manejo de Menú Contextual y Modales de Propiedades ──
-
-  public onAbrirPropiedadesContextual(): void {
-    const tipo = this.menuContextualTipo;
-    const id = this.menuContextualId;
-    this.menuContextualActivo = false;
-
-    if (tipo === 'entidad' && id !== null) {
-      const entidad = this.canvasService.getEntidad(id);
+  public onAbrirPropiedadesContextual(ev: EventoContextualAccion): void {
+    if (ev.tipo === 'entidad') {
+      const entidad = this.canvasService.getEntidad(ev.id);
       if (entidad) {
         this.entidadEditando = JSON.parse(JSON.stringify(entidad));
         this.modalEntidadActivo = true;
       }
-    } else if (tipo === 'relacion' && id !== null) {
-      const rel = this.canvasService.getRelacion(id);
+    } else {
+      const rel = this.canvasService.getRelacion(ev.id);
       if (rel) {
         this.relacionEditando = { ...rel };
         const entOrigen = this.canvasService.getEntidad(rel.entidad_origen_id);
@@ -615,46 +424,28 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.cdr.detectChanges();
   }
 
-  public onAgregarEtiquetaContextual(): void {
-    const tipo = this.menuContextualTipo;
-    const relId = this.menuContextualId;
-    this.menuContextualActivo = false;
-    this.menuContextualId = null;
-
-    if (tipo === 'relacion' && relId !== null) {
-      const pos = this.canvasService.obtenerPosicionEditorNombreRelacion(relId);
+  public onAgregarEtiquetaContextual(ev: EventoContextualAccion): void {
+    if (ev.tipo === 'relacion') {
+      const pos = this.canvasService.obtenerPosicionEditorNombreRelacion(ev.id);
       if (pos) {
-        this.abrirEditorNombreRelacion(relId, pos);
+        this.canvasService.solicitudEditorNombreRelacion$.next({ relacionId: ev.id, pos });
       }
     }
-    this.cdr.detectChanges();
   }
 
-  public onEliminarContextual(): void {
-    const tipo = this.menuContextualTipo;
-    const id = this.menuContextualId;
-    this.menuContextualActivo = false;
-    this.menuContextualId = null;
-
-    if (id !== null) {
-      if (tipo === 'entidad') {
-        this.canvasService.eliminarCeldaRemota(id);
-        this.socketService.enviarEliminarEntidad(id);
-        this.programarSnapshot();
-      } else {
-        this.canvasService.eliminarRelacionRemota(id);
-        this.socketService.enviarEliminarRelacion(id);
-        this.programarSnapshot();
-      }
+  public onEliminarContextual(ev: EventoContextualAccion): void {
+    if (ev.tipo === 'entidad') {
+      this.canvasService.eliminarCeldaRemota(ev.id);
+      this.socketService.enviarEliminarEntidad(ev.id);
+      this.programarSnapshot();
+    } else {
+      this.canvasService.eliminarRelacionRemota(ev.id);
+      this.socketService.enviarEliminarRelacion(ev.id);
+      this.programarSnapshot();
     }
-    this.cdr.detectChanges();
   }
 
-  public onCancelarMenuContextual(): void {
-    this.menuContextualActivo = false;
-    this.menuContextualId = null;
-    this.cdr.detectChanges();
-  }
+  // ── Modales de Propiedades y Colaboradores ──
 
   public onGuardarPropiedadesEntidad(entidadActualizada: EntidadDiagrama): void {
     this.canvasService.actualizarEntidadLocal(entidadActualizada);
@@ -693,6 +484,16 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.cdr.detectChanges();
   }
 
+  public onEliminarRelacionDesdeModal(relacionId: number): void {
+    this.canvasService.eliminarRelacionRemota(relacionId);
+    this.socketService.enviarEliminarRelacion(relacionId);
+    this.modalRelacionActivo = false;
+    this.relacionEditando = null;
+    this.programarSnapshot();
+    this.toastService.info('Relación eliminada correctamente.');
+    this.cdr.detectChanges();
+  }
+
   public onAbrirColaboradores(): void {
     this.modalColaboradoresActivo = true;
     this.cdr.detectChanges();
@@ -703,14 +504,17 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.cdr.detectChanges();
   }
 
+  public onCancelarTipoRelacion(): void {
+    this.canvasService.cancelarRelacionPendiente();
+  }
+
   private cerrarTodosModales(): void {
-    this.onCancelarEditor();
-    this.cancelarMenuRelacion();
-    this.cerrarSelectorCardinalidad();
-    this.onCancelarMenuContextual();
-    this.onCancelarModalEntidad();
-    this.onCancelarModalRelacion();
-    this.onCerrarColaboradores();
+    this.canvasService.cerrarModales$.next();
+    this.canvasService.cancelarRelacionPendiente();
+    this.modalEntidadActivo = false;
+    this.modalRelacionActivo = false;
+    this.modalColaboradoresActivo = false;
+    this.cdr.detectChanges();
   }
 
   @HostListener('document:keydown.escape', ['$event'])
@@ -720,14 +524,40 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.canvasService.deseleccionarEnlace();
   }
 
-  // ── Acciones Generales ──
+  @HostListener('document:keydown', ['$event'])
+  public onKeydownGlobal(evt: KeyboardEvent): void {
+    if (evt.key === 'Delete' || evt.key === 'Backspace') {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || (document.activeElement as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (this.modalEntidadActivo || this.modalRelacionActivo || this.modalColaboradoresActivo) {
+        return;
+      }
+      const relSeleccionadaId = this.canvasService.getRelacionSeleccionadaId();
+      if (relSeleccionadaId !== null) {
+        evt.preventDefault();
+        this.canvasService.eliminarRelacionRemota(relSeleccionadaId);
+        this.socketService.enviarEliminarRelacion(relSeleccionadaId);
+        this.programarSnapshot();
+        this.toastService.info('Relación eliminada.');
+        this.cdr.detectChanges();
+      }
+    }
+  }
+
+  // ── Acciones Generales y de Barra Lateral ──
 
   public onAgregarEntidad(): void {
     const centro = this.canvasService.calcularCentroVisible();
     const offset = (this.canvasService.getCantidadEntidades() % 6) * 36;
-    const nueva = this.canvasService.crearEntidadLocal(centro.x - 110 + offset, centro.y - 30 + offset, this.generarIdTemporal());
+    const nueva = this.canvasService.crearEntidadLocal(
+      centro.x - 110 + offset,
+      centro.y - 30 + offset,
+      this.socketService.generarIdTemporal()
+    );
     this.socketService.enviarCrearEntidad(nueva);
-    this.abrirEditorNombre(nueva.id);
+    this.canvasService.solicitudEditorNombre$.next(nueva.id);
   }
 
   public onAgregarClaseAsociacion(): void {
@@ -737,11 +567,15 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public onAgregarNota(): void {
     const centro = this.canvasService.calcularCentroVisible();
     const offset = (this.canvasService.getCantidadEntidades() % 6) * 36;
-    const nueva = this.canvasService.crearEntidadLocal(centro.x - 110 + offset, centro.y - 30 + offset, this.generarIdTemporal());
+    const nueva = this.canvasService.crearEntidadLocal(
+      centro.x - 110 + offset,
+      centro.y - 30 + offset,
+      this.socketService.generarIdTemporal()
+    );
     nueva.nombre = 'Nota / Comentario';
     this.canvasService.actualizarEntidadLocal(nueva);
     this.socketService.enviarCrearEntidad(nueva);
-    this.abrirEditorNombre(nueva.id);
+    this.canvasService.solicitudEditorNombre$.next(nueva.id);
   }
 
   public onRenombrarProyecto(nuevoNombre: string): void {
@@ -763,9 +597,104 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.toastService.info('Generador de código Spring Boot y entidades JPA en desarrollo para la Fase 2.');
   }
 
+  // ── Integración Asistente IA ──
+
+  public onDiagramaIAGenerado(payload: DiagramaGeneradoPayload): void {
+    if (!this.canvasService.estaListo) return;
+
+    const centro = this.canvasService.calcularCentroVisible();
+    const cantExistente = this.canvasService.getCantidadEntidades();
+    const payloadPosicionado = this.asistenteIaService.posicionarDiagramaGenerado(payload, centro, cantExistente);
+
+    for (const ent of payloadPosicionado.entidades) {
+      this.canvasService.crearCeldaRemota(ent);
+      this.socketService.enviarCrearEntidad(ent);
+    }
+    for (const rel of payloadPosicionado.relaciones) {
+      this.canvasService.crearRelacionRemota(rel);
+      this.socketService.enviarCrearRelacion(rel);
+    }
+
+    this.programarSnapshot();
+  }
+
+  public obtenerContextoDiagramaParaIA(): ContextoDiagramaIA {
+    if (!this.canvasService.estaListo) {
+      return { entidades: [], relaciones: [] };
+    }
+    return this.asistenteIaService.extraerContextoDiagrama(
+      this.canvasService.getEntidades(),
+      this.canvasService.getRelaciones()
+    );
+  }
+
+  public onEjecutarDeltaIA(delta: DeltaInstruccionIARespuesta): void {
+    if (!this.canvasService.estaListo) return;
+
+    const res = this.asistenteIaService.procesarDelta(
+      delta,
+      (id: number) => this.canvasService.getEntidad(id),
+      this.canvasService.calcularCentroVisible(),
+      this.canvasService.getCantidadEntidades(),
+      () => this.socketService.generarIdTemporal(),
+      this.canvasService.getEntidades()
+    );
+
+    for (const ent of res.entidadesACrear) {
+      this.canvasService.crearCeldaRemota(ent);
+      this.socketService.enviarCrearEntidad(ent);
+    }
+    for (const ent of res.entidadesAModificar) {
+      this.canvasService.actualizarEntidadLocal(ent);
+      this.socketService.enviarActualizarEntidad(ent);
+    }
+    for (const id of res.entidadesAEliminar) {
+      this.canvasService.eliminarCeldaRemota(id);
+      this.socketService.enviarEliminarEntidad(id);
+    }
+    for (const rel of res.relacionesACrear) {
+      this.canvasService.crearRelacionRemota(rel);
+      this.socketService.enviarCrearRelacion(rel);
+    }
+    for (const id of res.relacionesAEliminar) {
+      this.canvasService.eliminarRelacionRemota(id);
+      this.socketService.enviarEliminarRelacion(id);
+    }
+
+    this.programarSnapshot();
+  }
+
   public onExportarImagen(): void {
     this.toastService.info('Exportación de diagrama en formato PNG/PDF disponible próximamente en Fase 2.');
   }
+
+  public onExportarXml(): void {
+    if (!this.proyectoId) return;
+    this.toastService.info('Generando y descargando XML 2.1 estándar OMG para Enterprise Architect...');
+    const codigo = this.proyecto?.codigo || `PROJ_${this.proyectoId}`;
+    this.generadorService.descargarArchivoXML(this.proyectoId, codigo);
+  }
+
+  public onImportarXml(archivo: File): void {
+    if (!this.proyectoId || !archivo) return;
+    this.toastService.info(`Importando archivo ${archivo.name}...`);
+    this.generadorService.importarDiagramaXML(this.proyectoId, archivo, true).subscribe({
+      next: (resp: RespuestaImportacionXML) => {
+        const m = resp.metricas;
+        this.toastService.exito(
+          `¡Diagrama importado! Se crearon ${m.entidades_creadas} entidades, ${m.atributos_creados} atributos y ${m.relaciones_creadas} relaciones.`
+        );
+        this.canvasService.limpiar();
+        this.cargarDiagrama();
+      },
+      error: (err: HttpErrorResponse) => {
+        const msg = err.error?.detail || 'Error al importar archivo XML 2.1.';
+        this.toastService.error(msg);
+      }
+    });
+  }
+
+  // ── Drag & Drop de Elementos al Lienzo ──
 
   public onDragOverLienzo(evt: DragEvent): void {
     evt.preventDefault();
@@ -790,19 +719,29 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     const localPt = this.canvasService.clientToLocalPoint(evt.clientX, evt.clientY);
 
     if (tipo === 'entidad') {
-      const nueva = this.canvasService.crearEntidadLocal(localPt.x, localPt.y, this.generarIdTemporal());
+      const nueva = this.canvasService.crearEntidadLocal(
+        localPt.x,
+        localPt.y,
+        this.socketService.generarIdTemporal()
+      );
       this.socketService.enviarCrearEntidad(nueva);
-      this.abrirEditorNombre(nueva.id);
+      this.canvasService.solicitudEditorNombre$.next(nueva.id);
     } else if (tipo === 'clase_asociacion') {
       this.onAgregarClaseAsociacion();
     } else if (tipo === 'nota') {
-      const nueva = this.canvasService.crearEntidadLocal(localPt.x, localPt.y, this.generarIdTemporal());
+      const nueva = this.canvasService.crearEntidadLocal(
+        localPt.x,
+        localPt.y,
+        this.socketService.generarIdTemporal()
+      );
       nueva.nombre = 'Nota / Comentario';
       this.canvasService.actualizarEntidadLocal(nueva);
       this.socketService.enviarCrearEntidad(nueva);
-      this.abrirEditorNombre(nueva.id);
+      this.canvasService.solicitudEditorNombre$.next(nueva.id);
     }
   }
+
+  // ── Controles de Vista y Navegación ──
 
   public onToggleTema(): void {
     this.modoOscuro = !this.modoOscuro;
@@ -834,12 +773,5 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   private programarSnapshot(): void {
     const datos = this.canvasService.obtenerSnapshotDatos();
     this.socketService.programarGuardarSnapshot(datos);
-  }
-
-  private generarIdTemporal(): number {
-    this.contadorSesion++;
-    const delta = Date.now() - 1700000000000;
-    const userSeed = this.miUsuarioId ? (Math.abs(this.miUsuarioId) % 100) : Math.floor(Math.random() * 90 + 10);
-    return - (delta * 10000 + userSeed * 100 + (this.contadorSesion % 100));
   }
 }

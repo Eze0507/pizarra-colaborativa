@@ -1,20 +1,35 @@
 import {
   Component,
+  OnInit,
+  OnDestroy,
   Input,
   Output,
   EventEmitter,
   ElementRef,
   ViewChild,
   OnChanges,
-  SimpleChanges
+  SimpleChanges,
+  inject,
+  ChangeDetectorRef
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { AtributoDiagrama } from '../../interfaces/diagrama.interface';
 import {
   PosicionEditor,
   TipoEditor,
-  GuardarEditorPayload
+  GuardarEditorEvento
 } from '../../interfaces/whiteboard-ui.interface';
+import { WhiteboardCanvasService } from '../../services/whiteboard-canvas.service';
+
+const TIPOS_BACKEND_DEFECTO: AtributoDiagrama['tipo'][] = [
+  'string',
+  'integer',
+  'long',
+  'double',
+  'boolean',
+  'date'
+];
 
 @Component({
   selector: 'app-editor-inline',
@@ -23,24 +38,21 @@ import {
   templateUrl: './editor-inline.component.html',
   styleUrls: ['./editor-inline.component.css']
 })
-export class EditorInlineComponent implements OnChanges {
+export class EditorInlineComponent implements OnInit, OnDestroy, OnChanges {
   @ViewChild('inlineInput', { static: false }) private inlineInputRef?: ElementRef<HTMLInputElement>;
+
+  private readonly canvasService = inject(WhiteboardCanvasService, { optional: true });
+  private readonly cdr           = inject(ChangeDetectorRef);
+  private sub: Subscription | null = null;
 
   @Input() public activo = false;
   @Input() public tipo: TipoEditor = 'nombre';
   @Input() public posicion: PosicionEditor = { x: 0, y: 0, w: 0, h: 0 };
   @Input() public valor = '';
   @Input() public placeholder = '';
-  @Input() public tiposBackend: AtributoDiagrama['tipo'][] = [
-    'string',
-    'integer',
-    'long',
-    'double',
-    'boolean',
-    'date'
-  ];
+  @Input() public tiposBackend: AtributoDiagrama['tipo'][] = TIPOS_BACKEND_DEFECTO;
 
-  @Output() public readonly guardar = new EventEmitter<GuardarEditorPayload>();
+  @Output() public readonly guardar = new EventEmitter<GuardarEditorEvento>();
   @Output() public readonly cancelar = new EventEmitter<void>();
 
   public editorValor = '';
@@ -48,8 +60,119 @@ export class EditorInlineComponent implements OnChanges {
   public sugerenciasFiltradas: AtributoDiagrama['tipo'][] = [];
   public indiceSugerenciaSeleccionada = 0;
 
+  private entidadId: number | null = null;
+  private atributoIndex: number | null = null;
+  private relacionId: number | null = null;
+
   private ignorarSiguienteBlur = false;
   private blurTimer: ReturnType<typeof setTimeout> | null = null;
+
+  public ngOnInit(): void {
+    if (!this.canvasService) return;
+
+    this.sub = new Subscription();
+
+    // 1. Solicitud de edición del nombre de entidad
+    this.sub.add(
+      this.canvasService.solicitudEditorNombre$.subscribe(entidadId => {
+        const pos = this.canvasService!.obtenerPosicionEditorNombre(entidadId);
+        const entidad = this.canvasService!.getEntidad(entidadId);
+        if (!pos || !entidad) return;
+
+        this.relacionId = null;
+        this.entidadId = entidadId;
+        this.tipo = 'nombre';
+        this.atributoIndex = null;
+        this.valor = entidad.nombre || '';
+        this.editorValor = this.valor;
+        this.placeholder = 'Escribir nombre de entidad...';
+        this.posicion = pos;
+        this.activo = true;
+        this.cdr.detectChanges();
+        setTimeout(() => this.focalizarInput());
+      })
+    );
+
+    // 2. Solicitud de creación de nuevo atributo
+    this.sub.add(
+      this.canvasService.solicitudEditorNuevoAtributo$.subscribe(entidadId => {
+        const pos = this.canvasService!.obtenerPosicionEditorNuevoAtributo(entidadId);
+        if (!pos) return;
+
+        this.relacionId = null;
+        this.entidadId = entidadId;
+        this.tipo = 'nuevo_atributo';
+        this.atributoIndex = null;
+        this.valor = '';
+        this.editorValor = '';
+        this.placeholder = 'Ej: - id: integer [pk] o - nombre: string';
+        this.posicion = pos;
+        this.activo = true;
+        this.cdr.detectChanges();
+        setTimeout(() => this.focalizarInput());
+      })
+    );
+
+    // 3. Solicitud de edición de atributo existente
+    this.sub.add(
+      this.canvasService.solicitudEditorAtributo$.subscribe(ev => {
+        const pos = this.canvasService!.obtenerPosicionEditorAtributo(ev.entidadId, ev.index);
+        const entidad = this.canvasService!.getEntidad(ev.entidadId);
+        if (!pos || !entidad?.atributos?.[ev.index]) return;
+
+        const attr = entidad.atributos[ev.index];
+        this.relacionId = null;
+        this.entidadId = ev.entidadId;
+        this.tipo = 'editar_atributo';
+        this.atributoIndex = ev.index;
+
+        const pkStr = attr.es_clave ? '[pk] ' : '';
+        const optStr = attr.es_nulo ? '?' : '';
+        const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').trim();
+        this.valor = `${pkStr}- ${nombreLimpio}: ${attr.tipo}${optStr}`;
+        this.editorValor = this.valor;
+        this.placeholder = 'Ej: - nombre: string (vacío para eliminar)';
+        this.posicion = pos;
+        this.activo = true;
+        this.cdr.detectChanges();
+        setTimeout(() => this.focalizarInput());
+      })
+    );
+
+    // 4. Solicitud de edición de etiqueta/nombre de relación
+    this.sub.add(
+      this.canvasService.solicitudEditorNombreRelacion$.subscribe(ev => {
+        const relacion = this.canvasService!.getRelacion(ev.relacionId);
+        if (!relacion) return;
+
+        this.entidadId = null;
+        this.atributoIndex = null;
+        this.relacionId = ev.relacionId;
+        this.tipo = 'nombre_relacion';
+        this.valor = relacion.nombre_relacion || '';
+        this.editorValor = this.valor;
+        this.placeholder = 'nombre_relacion';
+        this.posicion = ev.pos;
+        this.activo = true;
+        this.cdr.detectChanges();
+        setTimeout(() => this.focalizarInput());
+      })
+    );
+
+    // 5. Cierre general de modales
+    this.sub.add(
+      this.canvasService.cerrarModales$.subscribe(() => {
+        if (this.activo) {
+          this.activo = false;
+          this.cdr.detectChanges();
+        }
+      })
+    );
+  }
+
+  public ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+  }
 
   public ngOnChanges(changes: SimpleChanges): void {
     if (changes['valor']) {
@@ -157,6 +280,7 @@ export class EditorInlineComponent implements OnChanges {
       if (this.inlineInputRef?.nativeElement) {
         this.inlineInputRef.nativeElement.value = '';
       }
+      this.activo = false;
       this.cancelar.emit();
     }
   }
@@ -223,6 +347,14 @@ export class EditorInlineComponent implements OnChanges {
     if (inputEl) {
       inputEl.value = '';
     }
-    this.guardar.emit({ valor: val, encadenar });
+    this.activo = false;
+    this.guardar.emit({
+      tipo: this.tipo,
+      valor: val,
+      encadenar,
+      entidadId: this.entidadId,
+      atributoIndex: this.atributoIndex,
+      relacionId: this.relacionId
+    });
   }
 }

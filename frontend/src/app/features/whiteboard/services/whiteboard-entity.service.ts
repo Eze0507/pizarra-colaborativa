@@ -65,10 +65,10 @@ export class WhiteboardEntityService {
     let maxAnchoAtributos = 0;
     if (entidad.atributos && entidad.atributos.length > 0) {
       for (const attr of entidad.atributos) {
-        const nombreLimpio = attr.nombre.replace(/\[\s*\]/g, '').trim();
+        const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').replace(/\[\s*\]/g, '').trim();
         const pk = attr.es_clave ? '[PK] ' : '     ';
         const opt = attr.es_nulo ? '?' : '';
-        const linea = `${pk}${nombreLimpio} : ${attr.tipo}${opt}`;
+        const linea = `${pk}- ${nombreLimpio} : ${attr.tipo}${opt}`;
         const anchoLinea = this.medirAnchoTexto(linea, '400 11px "JetBrains Mono", monospace') + PADDING_HORIZONTAL;
         if (anchoLinea > maxAnchoAtributos) {
           maxAnchoAtributos = anchoLinea;
@@ -149,6 +149,7 @@ function generarGruposPuertos(tema: TemaColores) {
         { tagName: 'rect', selector: 'body' },
         { tagName: 'rect', selector: 'header' },
         { tagName: 'text', selector: 'headerText' },
+        { tagName: 'text', selector: 'lockBadge' },
         { tagName: 'text', selector: 'bodyText' }
       ],
       ports: {
@@ -183,6 +184,18 @@ function generarGruposPuertos(tema: TemaColores) {
           textAnchor:         'middle',
           x:                  'calc(w/2)',
           y:                  ALTO_HEADER / 2,
+          pointerEvents:      'none'
+        },
+        lockBadge: {
+          text:               entidad.estado === 'bloqueado' ? '🔒' : '',
+          display:            entidad.estado === 'bloqueado' ? 'block' : 'none',
+          fill:               tema.bloqueadoBorde,
+          fontSize:           12,
+          fontFamily:         '"JetBrains Mono", sans-serif',
+          textAnchor:         'end',
+          x:                  'calc(w - 10)',
+          y:                  ALTO_HEADER / 2,
+          textVerticalAnchor: 'middle',
           pointerEvents:      'none'
         },
         bodyText: {
@@ -232,14 +245,18 @@ function generarGruposPuertos(tema: TemaColores) {
     if (entidad.atributos && entidad.atributos.length > 0) {
       const ordenados = [...entidad.atributos].sort((a, b) => a.orden - b.orden);
       ordenados.forEach(attr => {
-        const nombreLimpio = attr.nombre.replace(/\[\s*\]/g, '').trim();
+        const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').replace(/\[\s*\]/g, '').trim();
         const pk = attr.es_clave ? '[PK] ' : '     ';
         const opt = attr.es_nulo ? '?' : '';
-        lineas.push(`${pk}${nombreLimpio} : ${attr.tipo}${opt}`);
+        lineas.push(`${pk}- ${nombreLimpio} : ${attr.tipo}${opt}`);
       });
     }
 
     lineas.push('+ Agregar atributo');
+
+    const esBloqueado = entidad.estado === 'bloqueado';
+    const colorBorde = esBloqueado ? tema.bloqueadoBorde : tema.entidadBorde;
+    const colorHeaderBorde = esBloqueado ? tema.bloqueadoBorde : tema.headerBorde;
 
     celda.attr('bodyText/text', lineas.join('\n'));
     celda.attr('bodyText/textAnchor', 'start');
@@ -249,9 +266,11 @@ function generarGruposPuertos(tema: TemaColores) {
     celda.attr('bodyText/lineHeight', ALTO_ATRIBUTO);
     celda.attr('bodyText/fill', tema.bodyTexto);
     celda.attr('body/fill', tema.entidadFondo);
-    celda.attr('body/stroke', tema.entidadBorde);
+    celda.attr('body/stroke', colorBorde);
     celda.attr('header/fill', tema.headerFondo);
-    celda.attr('header/stroke', tema.headerBorde);
+    celda.attr('header/stroke', colorHeaderBorde);
+    celda.attr('lockBadge/text', esBloqueado ? '🔒' : '');
+    celda.attr('lockBadge/display', esBloqueado ? 'block' : 'none');
 
     const esOscuro = tema.lienzo === '#111111';
     const portFill = esOscuro ? '#1E293B' : '#FFFFFF';
@@ -339,6 +358,10 @@ function generarGruposPuertos(tema: TemaColores) {
     existente.coord_x = Number(entidad.coord_x);
     existente.coord_y = Number(entidad.coord_y);
 
+    if (entidad.estado) {
+      existente.estado = entidad.estado;
+    }
+
     const celda = this.celdas.get(numId);
     if (celda && !isNaN(existente.coord_x) && !isNaN(existente.coord_y)) {
       celda.position(existente.coord_x, existente.coord_y);
@@ -363,6 +386,23 @@ function generarGruposPuertos(tema: TemaColores) {
     if (celda) {
       celda.attr('body/stroke',   color);
       celda.attr('header/stroke', color);
+    }
+  }
+
+  public setEstadoBloqueoEntidad(id: number, bloqueado: boolean, tema: TemaColores): void {
+    const numId = Number(id);
+    const entidad = this.entidadesMap.get(numId);
+    if (entidad) {
+      entidad.estado = bloqueado ? 'bloqueado' : 'activo';
+    }
+    const celda = this.celdas.get(numId);
+    if (celda) {
+      const colorBorde = bloqueado ? tema.bloqueadoBorde : tema.entidadBorde;
+      const colorHeaderBorde = bloqueado ? tema.bloqueadoBorde : tema.headerBorde;
+      celda.attr('body/stroke', colorBorde);
+      celda.attr('header/stroke', colorHeaderBorde);
+      celda.attr('lockBadge/text', bloqueado ? '🔒' : '');
+      celda.attr('lockBadge/display', bloqueado ? 'block' : 'none');
     }
   }
 

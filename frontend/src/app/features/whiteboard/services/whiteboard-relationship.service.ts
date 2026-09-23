@@ -57,8 +57,7 @@ export class WhiteboardRelationshipService {
     this.linksRelaciones.clear();
     this.relacionesMap.clear();
     this.relacionesPendientes = [];
-    this.enlacePendiente = null;
-    this.relacionPendiente = null;
+    this.cancelarRelacionPendiente();
     this.enlaceSeleccionadoId = null;
     this.capsulaSeleccionada = null;
   }
@@ -92,6 +91,34 @@ export class WhiteboardRelationshipService {
     );
   }
 
+  public yaExisteRelacionEnMismosPuertos(
+    origenId: number,
+    destinoId: number,
+    puertoOrigen?: string,
+    puertoDestino?: string,
+    ignorarRelacionId?: number
+  ): boolean {
+    if (!puertoOrigen || !puertoDestino) return false;
+    return Array.from(this.relacionesMap.values()).some(r => {
+      if (ignorarRelacionId !== undefined && r.id === ignorarRelacionId) {
+        return false;
+      }
+      const mismoSentido =
+        r.entidad_origen_id === origenId &&
+        r.entidad_destino_id === destinoId &&
+        r.puerto_origen === puertoOrigen &&
+        r.puerto_destino === puertoDestino;
+
+      const sentidoInverso =
+        r.entidad_origen_id === destinoId &&
+        r.entidad_destino_id === origenId &&
+        r.puerto_origen === puertoDestino &&
+        r.puerto_destino === puertoOrigen;
+
+      return mismoSentido || sentidoInverso;
+    });
+  }
+
   public getRelacionIdPorLinkId(linkId: string | number): number | null {
     for (const [id, link] of this.linksRelaciones.entries()) {
       if (link.id === linkId) return id;
@@ -113,6 +140,45 @@ export class WhiteboardRelationshipService {
     if (puertoId.startsWith('left')) return 'left';
     if (puertoId.startsWith('right')) return 'right';
     return null;
+  }
+
+  public calcularPuertosOptimos(
+    celdaOrigen: joint.dia.Cell,
+    celdaDestino: joint.dia.Cell
+  ): { puertoOrigen: string; puertoDestino: string } {
+    if (celdaOrigen.id === celdaDestino.id) {
+      return { puertoOrigen: 'top-2', puertoDestino: 'right-0' };
+    }
+
+    const elemOrigen = celdaOrigen.isElement() ? (celdaOrigen as joint.dia.Element) : null;
+    const elemDestino = celdaDestino.isElement() ? (celdaDestino as joint.dia.Element) : null;
+
+    const posOrigen = elemOrigen ? elemOrigen.position() : { x: 0, y: 0 };
+    const posDestino = elemDestino ? elemDestino.position() : { x: 0, y: 0 };
+    const sizeOrigen = elemOrigen ? elemOrigen.size() : { width: 220, height: 160 };
+    const sizeDestino = elemDestino ? elemDestino.size() : { width: 220, height: 160 };
+
+    const cx1 = posOrigen.x + (sizeOrigen.width || 220) / 2;
+    const cy1 = posOrigen.y + (sizeOrigen.height || 160) / 2;
+    const cx2 = posDestino.x + (sizeDestino.width || 220) / 2;
+    const cy2 = posDestino.y + (sizeDestino.height || 160) / 2;
+
+    const dx = cx2 - cx1;
+    const dy = cy2 - cy1;
+
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      if (dx >= 0) {
+        return { puertoOrigen: 'right-1', puertoDestino: 'left-1' };
+      } else {
+        return { puertoOrigen: 'left-1', puertoDestino: 'right-1' };
+      }
+    } else {
+      if (dy >= 0) {
+        return { puertoOrigen: 'bottom-1', puertoDestino: 'top-1' };
+      } else {
+        return { puertoOrigen: 'top-1', puertoDestino: 'bottom-1' };
+      }
+    }
   }
 
   public obtenerOpcionesRouterManhattan(
@@ -166,25 +232,25 @@ export class WhiteboardRelationshipService {
         break;
 
       case 'agregacion':
-        link.attr('line/sourceMarker', {
+        link.attr('line/sourceMarker', { type: 'none' });
+        link.attr('line/targetMarker', {
           type: 'path',
           d: 'M 0 0 10 -6 20 0 10 6 z',
           fill: colorFondo,
           stroke: colorLinea,
           strokeWidth: 1.8
         });
-        link.attr('line/targetMarker', { type: 'none' });
         break;
 
       case 'composicion':
-        link.attr('line/sourceMarker', {
+        link.attr('line/sourceMarker', { type: 'none' });
+        link.attr('line/targetMarker', {
           type: 'path',
           d: 'M 0 0 10 -6 20 0 10 6 z',
           fill: colorLinea,
           stroke: colorLinea,
           strokeWidth: 1.8
         });
-        link.attr('line/targetMarker', { type: 'none' });
         break;
 
       case 'herencia':
@@ -202,8 +268,14 @@ export class WhiteboardRelationshipService {
 
   public esOrigenBloqueado(relacion: RelacionDiagrama | undefined | null): boolean {
     if (!relacion) return false;
-    if (relacion.tipo === 'composicion') return true;
     if (relacion.origen_bloqueado) return true;
+    return false;
+  }
+
+  public esDestinoBloqueado(relacion: RelacionDiagrama | undefined | null): boolean {
+    if (!relacion) return false;
+    if (relacion.tipo === 'composicion') return true;
+    if (relacion.destino_bloqueado) return true;
     return false;
   }
 
@@ -248,10 +320,13 @@ export class WhiteboardRelationshipService {
 
     switch (tipo) {
       case 'asociacion':
-      case 'agregacion':
-      case 'composicion':
         cardOrigen = '1';
         cardDestino = '0..*';
+        break;
+      case 'agregacion':
+      case 'composicion':
+        cardOrigen = '0..*';
+        cardDestino = '1';
         break;
       case 'herencia':
         cardOrigen = '';
@@ -271,7 +346,7 @@ export class WhiteboardRelationshipService {
       puerto_destino: puertoDestino,
       cardinalidad_origen: cardOrigen,
       cardinalidad_destino: cardDestino,
-      origen_bloqueado: esBloqueado,
+      destino_bloqueado: esBloqueado,
       vertices: []
     };
 
@@ -513,6 +588,7 @@ export class WhiteboardRelationshipService {
     relaciones.forEach(r => {
       this.crearRelacionRemota(r, modoOscuro);
     });
+    this.verificarConectoresClaseAsociacion(modoOscuro);
   }
 
   public crearRelacionRemota(relacion: RelacionDiagrama, modoOscuro: boolean): void {
@@ -529,18 +605,24 @@ export class WhiteboardRelationshipService {
     }
 
     if (relacion.tipo === 'composicion') {
-      relacion.origen_bloqueado = true;
+      relacion.destino_bloqueado = true;
+    }
+
+    if (!relacion.puerto_origen || !relacion.puerto_destino) {
+      const calculados = this.calcularPuertosOptimos(celdaOrigen, celdaDestino);
+      if (!relacion.puerto_origen) relacion.puerto_origen = calculados.puertoOrigen;
+      if (!relacion.puerto_destino) relacion.puerto_destino = calculados.puertoDestino;
     }
 
     const esAutoreferencia = relacion.entidad_origen_id === relacion.entidad_destino_id;
     const link = new joint.shapes.standard.Link({
       source: {
         id: celdaOrigen.id,
-        ...(relacion.puerto_origen ? { port: relacion.puerto_origen } : {})
+        port: relacion.puerto_origen
       },
       target: {
         id: celdaDestino.id,
-        ...(relacion.puerto_destino ? { port: relacion.puerto_destino } : {})
+        port: relacion.puerto_destino
       },
       router: {
         name: 'manhattan',
@@ -599,19 +681,29 @@ export class WhiteboardRelationshipService {
       const celdaOrigen = this.entityService.getCelda(origId);
       const celdaDestino = this.entityService.getCelda(destId);
 
-      const puertoOrigen = existente?.puerto_origen ?? relacion.puerto_origen;
-      const puertoDestino = existente?.puerto_destino ?? relacion.puerto_destino;
+      let puertoOrigen = existente?.puerto_origen ?? relacion.puerto_origen;
+      let puertoDestino = existente?.puerto_destino ?? relacion.puerto_destino;
+
+      if (celdaOrigen && celdaDestino && (!puertoOrigen || !puertoDestino)) {
+        const calculados = this.calcularPuertosOptimos(celdaOrigen, celdaDestino);
+        if (!puertoOrigen) puertoOrigen = calculados.puertoOrigen;
+        if (!puertoDestino) puertoDestino = calculados.puertoDestino;
+        if (existente) {
+          existente.puerto_origen = puertoOrigen;
+          existente.puerto_destino = puertoDestino;
+        }
+      }
 
       if (celdaOrigen) {
         link.source({
           id: celdaOrigen.id,
-          ...(puertoOrigen ? { port: puertoOrigen } : {})
+          port: puertoOrigen
         });
       }
       if (celdaDestino) {
         link.target({
           id: celdaDestino.id,
-          ...(puertoDestino ? { port: puertoDestino } : {})
+          port: puertoDestino
         });
       }
 
@@ -641,8 +733,8 @@ export class WhiteboardRelationshipService {
 
     relacion.entidad_origen_id = nuevoOrigenId;
     relacion.entidad_destino_id = nuevoDestinoId;
-    relacion.puerto_origen = nuevoPuertoOrigen;
-    relacion.puerto_destino = nuevoPuertoDestino;
+    relacion.puerto_origen = nuevoPuertoOrigen || relacion.puerto_origen;
+    relacion.puerto_destino = nuevoPuertoDestino || relacion.puerto_destino;
     relacion.vertices = [];
 
     const celdaOrigen = this.entityService.getCelda(nuevoOrigenId);
@@ -651,11 +743,11 @@ export class WhiteboardRelationshipService {
 
     link.source({
       id: celdaOrigen.id,
-      ...(nuevoPuertoOrigen ? { port: nuevoPuertoOrigen } : {})
+      port: relacion.puerto_origen
     });
     link.target({
       id: celdaDestino.id,
-      ...(nuevoPuertoDestino ? { port: nuevoPuertoDestino } : {})
+      port: relacion.puerto_destino
     });
 
     const esAutoreferencia = nuevoOrigenId === nuevoDestinoId;
@@ -789,6 +881,11 @@ export class WhiteboardRelationshipService {
     this.enlaceSeleccionadoId = null;
   }
 
+  public getRelacionSeleccionadaId(): number | null {
+    if (!this.enlaceSeleccionadoId) return null;
+    return this.getRelacionIdPorLinkId(this.enlaceSeleccionadoId);
+  }
+
   public sincronizarVerticesEnlace(_link: joint.dia.Link): void {
   }
 
@@ -839,17 +936,21 @@ export class WhiteboardRelationshipService {
       return;
     }
 
+    const defaultOrigen = (relacion.tipo === 'agregacion' || relacion.tipo === 'composicion') ? '0..*' : '1';
+    const defaultDestino = (relacion.tipo === 'agregacion' || relacion.tipo === 'composicion') ? '1' : '0..*';
+
     const cardOrigen = (relacion.cardinalidad_origen !== undefined && relacion.cardinalidad_origen !== '')
       ? relacion.cardinalidad_origen.trim()
-      : '1';
+      : defaultOrigen;
     const cardDestino = (relacion.cardinalidad_destino !== undefined && relacion.cardinalidad_destino !== '')
       ? relacion.cardinalidad_destino.trim()
-      : '0..*';
+      : defaultDestino;
 
     if (!relacion.cardinalidad_origen) relacion.cardinalidad_origen = cardOrigen;
     if (!relacion.cardinalidad_destino) relacion.cardinalidad_destino = cardDestino;
 
-    const esBloqueado = this.esOrigenBloqueado(relacion);
+    const esOrigBloqueado = this.esOrigenBloqueado(relacion);
+    const esDestBloqueado = this.esDestinoBloqueado(relacion);
     const esOrigenSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'origen';
     const esDestinoSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'destino';
 
@@ -861,7 +962,11 @@ export class WhiteboardRelationshipService {
 
     const origenClases = 'capsula-cardinalidad' +
       (esOrigenSel ? ' capsula-seleccionada' : '') +
-      (esBloqueado ? ' capsula-bloqueada' : '');
+      (esOrigBloqueado ? ' capsula-bloqueada' : '');
+
+    const destinoClases = 'capsula-cardinalidad' +
+      (esDestinoSel ? ' capsula-seleccionada' : '') +
+      (esDestBloqueado ? ' capsula-bloqueada' : '');
 
     const labels: joint.dia.Link.Label[] = [
       {
@@ -878,24 +983,24 @@ export class WhiteboardRelationshipService {
             y: 'calc(y - 3)',
             width: 'calc(w + 12)',
             height: 'calc(h + 6)',
-            cursor: esBloqueado ? 'not-allowed' : 'pointer'
+            cursor: esOrigBloqueado ? 'not-allowed' : 'pointer'
           },
           text: {
             text: cardOrigen,
-            fill: esOrigenSel ? '#00A3FF' : (esBloqueado ? textoColorBloqueado : textoColorNormal),
+            fill: esOrigenSel ? '#00A3FF' : (esOrigBloqueado ? textoColorBloqueado : textoColorNormal),
             fontSize: 11,
             fontFamily: '"JetBrains Mono", monospace',
             fontWeight: esOrigenSel ? '700' : '600',
             textAnchor: 'middle',
             textVerticalAnchor: 'middle',
-            cursor: esBloqueado ? 'not-allowed' : 'pointer'
+            cursor: esOrigBloqueado ? 'not-allowed' : 'pointer'
           }
         },
         position: { distance: 38, offset: 0 }
       },
       {
         attrs: {
-          root: { class: 'capsula-cardinalidad' + (esDestinoSel ? ' capsula-seleccionada' : '') },
+          root: { class: destinoClases },
           rect: {
             ref: 'text',
             fill: esDestinoSel ? fondoBadgeSel : fondoBadgeNormal,
@@ -907,17 +1012,17 @@ export class WhiteboardRelationshipService {
             y: 'calc(y - 3)',
             width: 'calc(w + 12)',
             height: 'calc(h + 6)',
-            cursor: 'pointer'
+            cursor: esDestBloqueado ? 'not-allowed' : 'pointer'
           },
           text: {
             text: cardDestino,
-            fill: esDestinoSel ? '#00A3FF' : textoColorNormal,
+            fill: esDestinoSel ? '#00A3FF' : (esDestBloqueado ? textoColorBloqueado : textoColorNormal),
             fontSize: 11,
             fontFamily: '"JetBrains Mono", monospace',
             fontWeight: esDestinoSel ? '700' : '600',
             textAnchor: 'middle',
             textVerticalAnchor: 'middle',
-            cursor: 'pointer'
+            cursor: esDestBloqueado ? 'not-allowed' : 'pointer'
           }
         },
         position: { distance: -38, offset: 0 }
@@ -979,6 +1084,10 @@ export class WhiteboardRelationshipService {
     if (!relacion) return null;
 
     if (extremo === 'origen' && this.esOrigenBloqueado(relacion)) {
+      return null;
+    }
+
+    if (extremo === 'destino' && this.esDestinoBloqueado(relacion)) {
       return null;
     }
 
@@ -1093,10 +1202,12 @@ export class WhiteboardRelationshipService {
     const link = this.linksRelaciones.get(relacionId);
     if (rel && link) {
       rel.nombre_relacion = nombre;
-      if (!this.esOrigenBloqueado(rel)) {
-        rel.cardinalidad_origen = cardinalidadOrigen;
+      rel.cardinalidad_origen = cardinalidadOrigen;
+      if (!this.esDestinoBloqueado(rel)) {
+        rel.cardinalidad_destino = cardinalidadDestino;
+      } else {
+        rel.cardinalidad_destino = '1';
       }
-      rel.cardinalidad_destino = cardinalidadDestino;
       rel.vertices = [];
       this.deseleccionarCapsula(modoOscuro);
       this.actualizarEtiquetasCardinalidad(link, rel, modoOscuro);

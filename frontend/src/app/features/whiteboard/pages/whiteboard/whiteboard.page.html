@@ -33,9 +33,12 @@
     (abrirColaboradores)="onAbrirColaboradores()"
     (generarCodigo)="onGenerarCodigo()"
     (exportarImagen)="onExportarImagen()"
+    (exportarXml)="onExportarXml()"
+    (importarXml)="onImportarXml($event)"
     (cerrarSesion)="onCerrarSesion()"
     (volverDashboard)="onVolverDashboard()"
     (toggleTema)="onToggleTema()"
+    (diagramaIAGenerado)="onDiagramaIAGenerado($event)"
   >
   </app-sidebar-pizarra>
 
@@ -50,35 +53,20 @@
 
     <!-- Editor inline interactivo sobre la figura seleccionada -->
     <app-editor-inline
-      [activo]="editorActivo"
-      [tipo]="editorTipo"
-      [posicion]="editorPos"
-      [valor]="editorValor"
-      [placeholder]="editorPlaceholder"
-      [tiposBackend]="TIPOS_BACKEND"
       (guardar)="onGuardarEditor($event)"
-      (cancelar)="onCancelarEditor()"
     >
     </app-editor-inline>
 
     <!-- Menú contextual flotante de selección de Tipo de Relación UML -->
     <app-menu-relacion
-      [visible]="menuRelacionActivo"
-      [posicion]="menuRelacionPos"
-      [opciones]="OPCIONES_RELACIONES"
       (seleccionar)="confirmarTipoRelacion($event)"
-      (cancelar)="cancelarMenuRelacion()"
+      (cancelar)="onCancelarTipoRelacion()"
     >
     </app-menu-relacion>
 
     <!-- Menú flotante de selección de Multiplicidad / Cardinalidad -->
     <app-menu-cardinalidad
-      [visible]="menuCardinalidadActivo"
-      [posicion]="menuCardinalidadPos"
-      [cardinalidadEditando]="cardinalidadEditando"
-      [opciones]="OPCIONES_CARDINALIDAD"
       (seleccionar)="seleccionarCardinalidad($event)"
-      (cerrar)="cerrarSelectorCardinalidad()"
     >
     </app-menu-cardinalidad>
 
@@ -91,16 +79,19 @@
     >
     </app-controles-zoom>
 
+    <!-- Botón Flotante y Panel de Asistente IA (Chat y Voz) -->
+    <app-chat-asistente-ia
+      [contextoDiagrama]="obtenerContextoDiagramaParaIA()"
+      [modoOscuro]="modoOscuro"
+      (ejecutarDeltaIA)="onEjecutarDeltaIA($event)"
+    >
+    </app-chat-asistente-ia>
+
     <!-- Menú contextual flotante al hacer doble clic en una Entidad o Relación -->
     <app-menu-contextual
-      [visible]="menuContextualActivo"
-      [posicion]="menuContextualPos"
-      [tipo]="menuContextualTipo"
-      [titulo]="menuContextualTitulo"
-      (propiedades)="onAbrirPropiedadesContextual()"
-      (agregarEtiqueta)="onAgregarEtiquetaContextual()"
-      (eliminar)="onEliminarContextual()"
-      (cancelar)="onCancelarMenuContextual()"
+      (propiedades)="onAbrirPropiedadesContextual($event)"
+      (agregarEtiqueta)="onAgregarEtiquetaContextual($event)"
+      (eliminar)="onEliminarContextual($event)"
     >
     </app-menu-contextual>
 
@@ -121,6 +112,7 @@
       [nombreDestino]="relacionNombreDestino"
       (guardar)="onGuardarPropiedadesRelacion($event)"
       (cancelar)="onCancelarModalRelacion()"
+      (eliminar)="onEliminarRelacionDesdeModal($event)"
     >
     </app-modal-propiedades-relacion>
 

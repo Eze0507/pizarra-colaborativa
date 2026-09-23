@@ -28,7 +28,10 @@ export class DiagramaParserService {
     // 3. Limpiar corchetes vacíos residuales
     limpio = limpio.replace(/\[\s*\]/g, '').trim();
 
-    // 4. Detectar nulabilidad
+    // 4. Limpiar prefijo de visibilidad UML (+, -, #, ~) al inicio
+    limpio = limpio.replace(/^[-+~#]\s*/, '').trim();
+
+    // 5. Detectar nulabilidad
     if (limpio.endsWith('?') || /\bnull\b/i.test(limpio)) {
       esNulo = true;
       limpio = limpio.replace(/\?|\bnull\b/gi, '').trim();
@@ -51,7 +54,7 @@ export class DiagramaParserService {
       }
     }
 
-    nombre = nombre.replace(/\[\s*\]/g, '').trim();
+    nombre = nombre.replace(/^[-+~#]\s*/, '').replace(/\[\s*\]/g, '').trim();
 
     if (nombre.toLowerCase() === 'id' || nombre.toLowerCase().endsWith('_id')) {
       if (!esClave && nombre.toLowerCase() === 'id') esClave = true;

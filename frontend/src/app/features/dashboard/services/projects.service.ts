@@ -22,4 +22,8 @@ export class ProjectsService {
   public crearProyecto(data: ProyectoCreateRequest): Observable<Proyecto> {
     return this.http.post<Proyecto>(`${this.baseUrl}/`, data);
   }
+
+  public eliminarProyecto(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}/`);
+  }
 }

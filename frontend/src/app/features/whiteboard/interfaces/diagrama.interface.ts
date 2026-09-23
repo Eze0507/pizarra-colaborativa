@@ -17,6 +17,8 @@ export interface EntidadDiagrama {
   coord_y: number;
   ancho: number;
   es_intermedia?: boolean;
+  pos_x?: number;
+  pos_y?: number;
   atributos: AtributoDiagrama[];
 }
 
@@ -33,6 +35,7 @@ export interface RelacionDiagrama {
   puerto_destino?: string;
   vertices?: { x: number; y: number }[];
   origen_bloqueado?: boolean;
+  destino_bloqueado?: boolean;
 }
 
 export interface ProyectoDiagrama {

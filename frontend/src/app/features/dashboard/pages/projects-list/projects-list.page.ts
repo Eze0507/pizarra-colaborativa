@@ -1,30 +1,46 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ProjectsService } from '../../services/projects.service';
+import { InvitacionesService } from '../../services/invitaciones.service';
 import { Proyecto } from '../../interfaces/proyecto.interface';
 import { ProjectCardComponent } from '../../components/project-card/project-card.component';
 import { CreateProjectModalComponent } from '../../components/create-project-modal/create-project-modal.component';
+import { DeleteProjectModalComponent } from '../../components/delete-project-modal/delete-project-modal.component';
 import { SearchBarComponent } from '../../../../shared/components/search-bar/search-bar.component';
+import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
 
 @Component({
   selector: 'app-projects-list-page',
   standalone: true,
-  imports: [CommonModule, ProjectCardComponent, CreateProjectModalComponent, SearchBarComponent],
+  imports: [CommonModule, ProjectCardComponent, CreateProjectModalComponent, DeleteProjectModalComponent, SearchBarComponent],
   templateUrl: './projects-list.page.html',
   styleUrls: ['./projects-list.page.css']
 })
 export class ProjectsListPage implements OnInit {
   private readonly projectsService = inject(ProjectsService);
+  private readonly invitacionesService = inject(InvitacionesService);
+  private readonly toastService = inject(ToastNotificationService);
+  private readonly destroyRef = inject(DestroyRef);
 
   public proyectos: Proyecto[] = [];
   public isLoading = true;
   public errorMessage: string | null = null;
   public isModalOpen = false;
+  public isDeleteModalOpen = false;
+  public projectToDelete: Proyecto | null = null;
   public searchTerm = '';
 
   public ngOnInit(): void {
     this.loadProyectos();
+
+    // Recargar automáticamente la lista si se acepta una invitación desde el Header
+    this.invitacionesService.invitacionAceptada$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.loadProyectos();
+      });
   }
 
   public loadProyectos(): void {
@@ -84,5 +100,23 @@ export class ProjectsListPage implements OnInit {
   public onProjectCreated(nuevoProyecto: Proyecto): void {
     this.proyectos = [nuevoProyecto, ...this.proyectos];
     this.isModalOpen = false;
+  }
+
+  public openDeleteModal(proyecto: Proyecto): void {
+    this.projectToDelete = proyecto;
+    this.isDeleteModalOpen = true;
+  }
+
+  public onDeleteModalClose(): void {
+    this.isDeleteModalOpen = false;
+    this.projectToDelete = null;
+  }
+
+  public onProjectDeleted(deletedId: number): void {
+    const nombre = this.projectToDelete?.nombre || 'El proyecto';
+    this.proyectos = this.proyectos.filter(p => p.id !== deletedId);
+    this.isDeleteModalOpen = false;
+    this.projectToDelete = null;
+    this.toastService.exito(`${nombre} ha sido eliminado exitosamente.`);
   }
 }
