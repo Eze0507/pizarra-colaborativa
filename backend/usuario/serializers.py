@@ -163,6 +163,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         )
 
         # 2. Generar token temporal firmado (24h de vigencia)
+        token = signing.dumps({'user_id': user.id}, salt='account-activation')
         request = self.context.get('request')
         base_url = get_frontend_url(request)
         activation_url = f"{base_url}/activar/{token}"
