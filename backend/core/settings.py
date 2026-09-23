@@ -198,4 +198,9 @@ CHANNEL_LAYERS = {
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
 
+# URL base del frontend para enlaces en correos (activación, invitaciones)
+FRONTEND_URL = os.environ.get('FRONTEND_URL', '')
+FRONTEND_PORT = os.environ.get('FRONTEND_PORT_EXTERNAL', '4200')
+
+
 

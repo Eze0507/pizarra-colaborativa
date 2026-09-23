@@ -249,6 +249,7 @@ class ColaboradorReenviarInvitacionView(APIView):
         from django.conf import settings
         from django.core import signing
         from django.core.mail import send_mail
+        from core.utils import get_frontend_url
 
         proyecto = get_object_or_404(Proyecto, pk=pk)
 
@@ -273,7 +274,8 @@ class ColaboradorReenviarInvitacionView(APIView):
             'usuario_id': target_user.id
         }, salt='project-invitation')
 
-        invitation_url = f"http://localhost:4200/invitacion/{token}"
+        base_url = get_frontend_url(request)
+        invitation_url = f"{base_url}/invitacion/{token}"
 
         subject = f"Invitación para colaborar en el proyecto {proyecto.nombre}"
         nombre_destinatario = target_user.first_name or target_user.username

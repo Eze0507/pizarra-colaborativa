@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.core import signing
 from django.core.mail import send_mail
 from rest_framework import serializers
+from core.utils import get_frontend_url
 
 from .models import Proyecto, Entidad, Atributo, Relacion
 from usuario.models import UserColaborador
@@ -186,8 +187,9 @@ class InvitarColaboradorSerializer(serializers.Serializer):
             'proyecto_id': proyecto.id,
             'usuario_id': target_user.id
         }, salt='project-invitation')
-
-        invitation_url = f"http://localhost:4200/invitacion/{token}"
+        request = self.context.get('request')
+        base_url = get_frontend_url(request)
+        invitation_url = f"{base_url}/invitacion/{token}"
 
         # Enviar correo mediante Gmail SMTP
         subject = f"Invitación para colaborar en el proyecto {proyecto.nombre}"

@@ -4,6 +4,7 @@ from django.core import signing
 from django.core.mail import send_mail
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
+from core.utils import get_frontend_url
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
@@ -162,8 +163,9 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         )
 
         # 2. Generar token temporal firmado (24h de vigencia)
-        token = signing.dumps({'user_id': user.id}, salt='account-activation')
-        activation_url = f"http://localhost:4200/activar/{token}"
+        request = self.context.get('request')
+        base_url = get_frontend_url(request)
+        activation_url = f"{base_url}/activar/{token}"
 
         # 3. Enviar correo de verificación por Gmail
         subject = "¡Gracias por registrarte en nuestra Herramienta CASE!"
