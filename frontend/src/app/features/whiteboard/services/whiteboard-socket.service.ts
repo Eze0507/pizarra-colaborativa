@@ -47,7 +47,8 @@ export class WhiteboardSocketService {
       this.desconectar();
     }
 
-    const wsUrl = `ws://localhost:8000/ws/pizarra/${proyectoId}/?token=${token}`;
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    const wsUrl = `ws://${host}:8000/ws/pizarra/${proyectoId}/?token=${token}`;
     this._estado$.next('conectando');
 
     // Ejecutar fuera de la zona Angular para evitar deteccion de cambios excesiva
