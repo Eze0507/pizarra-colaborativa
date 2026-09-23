@@ -121,3 +121,25 @@
 .btn-guardar-cardinalidad:hover {
   background-color: #0088D6;
 }
+
+.btn-limpiar-cardinalidad {
+  height: 28px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--wb-btn-bg, rgba(255, 255, 255, 0.06));
+  color: var(--wb-text-sec, #888888);
+  border: 1px solid var(--wb-btn-brd, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.btn-limpiar-cardinalidad:hover {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+  border-color: #EF4444;
+}

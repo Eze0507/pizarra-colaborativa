@@ -350,13 +350,12 @@ class XMIExporter:
 
                 if rel.tipo in (Relacion.Tipo.AGREGACION, Relacion.Tipo.COMPOSICION):
                     agg_uml_tipo = 'composite' if rel.tipo == Relacion.Tipo.COMPOSICION else 'shared'
-                    card_source = rel.cardinalidad_origen or '0..*'
-                    card_target = rel.cardinalidad_destino or '1'
+                    card_source = (rel.cardinalidad_origen or '').strip()
+                    card_target = (rel.cardinalidad_destino or '').strip()
 
                     # Para Agregación y Composición, Enterprise Architect coloca el extremo destino
                     # como un <ownedAttribute> dentro de la clase origen (la parte):
                     source_class_elem = clase_elements_map.get(rel.entidad_origen_id)
-                    lower_dest, upper_dest = self._parsear_cardinalidad(card_target)
                     if source_class_elem is not None:
                         dst_attr_attrs = {
                             f'{{{XMI_NS}}}type': 'uml:Property',
@@ -375,14 +374,15 @@ class XMIExporter:
                             dst_attr_attrs['name'] = rel.nombre_relacion
                         dst_attr = ET.SubElement(source_class_elem, 'ownedAttribute', dst_attr_attrs)
                         ET.SubElement(dst_attr, 'type', {f'{{{XMI_NS}}}idref': destino_eaid})
-                        self._crear_multiplicidad_elementos(dst_attr, lower_dest, upper_dest)
+                        if card_target:
+                            lower_dest, upper_dest = self._parsear_cardinalidad(card_target)
+                            self._crear_multiplicidad_elementos(dst_attr, lower_dest, upper_dest)
 
                     # En la <uml:Association>, el primer memberEnd apunta al ownedAttribute de la clase origen
                     ET.SubElement(assoc_elem, 'memberEnd', {f'{{{XMI_NS}}}idref': dst_end_id})
                     # El segundo memberEnd apunta al ownedEnd de la asociación (la parte con aggregation composite/shared)
                     ET.SubElement(assoc_elem, 'memberEnd', {f'{{{XMI_NS}}}idref': src_end_id})
 
-                    lower_orig, upper_orig = self._parsear_cardinalidad(card_source)
                     src_end_attrs = {
                         f'{{{XMI_NS}}}type': 'uml:Property',
                         f'{{{XMI_NS}}}id': src_end_id,
@@ -398,7 +398,9 @@ class XMIExporter:
                     }
                     src_end = ET.SubElement(assoc_elem, 'ownedEnd', src_end_attrs)
                     ET.SubElement(src_end, 'type', {f'{{{XMI_NS}}}idref': origen_eaid})
-                    self._crear_multiplicidad_elementos(src_end, lower_orig, upper_orig)
+                    if card_source:
+                        lower_orig, upper_orig = self._parsear_cardinalidad(card_source)
+                        self._crear_multiplicidad_elementos(src_end, lower_orig, upper_orig)
 
                     ea_type = 'Aggregation'
                     subtype = 'Strong' if rel.tipo == Relacion.Tipo.COMPOSICION else 'Shared'
@@ -408,12 +410,11 @@ class XMIExporter:
                 else:
                     # Asociación regular: ambos extremos son ownedEnd dentro de la asociación
                     # Orden idéntico a Enterprise Architect: memberEnd[0] es destino, memberEnd[1] es origen
-                    card_source = rel.cardinalidad_origen or '1'
-                    card_target = rel.cardinalidad_destino or '1'
+                    card_source = (rel.cardinalidad_origen or '').strip()
+                    card_target = (rel.cardinalidad_destino or '').strip()
 
                     # memberEnd 1 y ownedEnd para destino
                     ET.SubElement(assoc_elem, 'memberEnd', {f'{{{XMI_NS}}}idref': dst_end_id})
-                    lower_dest, upper_dest = self._parsear_cardinalidad(card_target)
                     dst_end_attrs = {
                         f'{{{XMI_NS}}}type': 'uml:Property',
                         f'{{{XMI_NS}}}id': dst_end_id,
@@ -431,11 +432,12 @@ class XMIExporter:
                         dst_end_attrs['name'] = rel.nombre_relacion
                     dst_end = ET.SubElement(assoc_elem, 'ownedEnd', dst_end_attrs)
                     ET.SubElement(dst_end, 'type', {f'{{{XMI_NS}}}idref': destino_eaid})
-                    self._crear_multiplicidad_elementos(dst_end, lower_dest, upper_dest)
+                    if card_target:
+                        lower_dest, upper_dest = self._parsear_cardinalidad(card_target)
+                        self._crear_multiplicidad_elementos(dst_end, lower_dest, upper_dest)
 
                     # memberEnd 2 y ownedEnd para origen
                     ET.SubElement(assoc_elem, 'memberEnd', {f'{{{XMI_NS}}}idref': src_end_id})
-                    lower_orig, upper_orig = self._parsear_cardinalidad(card_source)
                     src_end_attrs = {
                         f'{{{XMI_NS}}}type': 'uml:Property',
                         f'{{{XMI_NS}}}id': src_end_id,
@@ -451,7 +453,9 @@ class XMIExporter:
                     }
                     src_end = ET.SubElement(assoc_elem, 'ownedEnd', src_end_attrs)
                     ET.SubElement(src_end, 'type', {f'{{{XMI_NS}}}idref': origen_eaid})
-                    self._crear_multiplicidad_elementos(src_end, lower_orig, upper_orig)
+                    if card_source:
+                        lower_orig, upper_orig = self._parsear_cardinalidad(card_source)
+                        self._crear_multiplicidad_elementos(src_end, lower_orig, upper_orig)
 
                     ea_type = 'Association'
                     subtype = None

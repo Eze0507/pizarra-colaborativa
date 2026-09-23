@@ -317,22 +317,9 @@ export class WhiteboardRelationshipService {
 
     let cardOrigen = '';
     let cardDestino = '';
-
-    switch (tipo) {
-      case 'asociacion':
-        cardOrigen = '1';
-        cardDestino = '0..*';
-        break;
-      case 'agregacion':
-      case 'composicion':
-        cardOrigen = '0..*';
-        cardDestino = '1';
-        break;
-      case 'herencia':
-        cardOrigen = '';
-        cardDestino = '';
-        break;
-    }
+    // Sin cardinalidades por defecto: inician vacías a menos que el usuario las asigne explícitamente
+    cardOrigen = '';
+    cardDestino = '';
 
     const esBloqueado = tipo === 'composicion';
 
@@ -520,8 +507,8 @@ export class WhiteboardRelationshipService {
       entidad_destino_id: destinoId,
       puerto_origen: puertoOrigen,
       puerto_destino: puertoDestino,
-      cardinalidad_origen: '0..*',
-      cardinalidad_destino: '0..*',
+      cardinalidad_origen: '',
+      cardinalidad_destino: '',
       clase_asociacion_id: entidadIntermedia.id,
       origen_bloqueado: false,
       vertices: []
@@ -936,23 +923,8 @@ export class WhiteboardRelationshipService {
       return;
     }
 
-    const defaultOrigen = (relacion.tipo === 'agregacion' || relacion.tipo === 'composicion') ? '0..*' : '1';
-    const defaultDestino = (relacion.tipo === 'agregacion' || relacion.tipo === 'composicion') ? '1' : '0..*';
-
-    const cardOrigen = (relacion.cardinalidad_origen !== undefined && relacion.cardinalidad_origen !== '')
-      ? relacion.cardinalidad_origen.trim()
-      : defaultOrigen;
-    const cardDestino = (relacion.cardinalidad_destino !== undefined && relacion.cardinalidad_destino !== '')
-      ? relacion.cardinalidad_destino.trim()
-      : defaultDestino;
-
-    if (!relacion.cardinalidad_origen) relacion.cardinalidad_origen = cardOrigen;
-    if (!relacion.cardinalidad_destino) relacion.cardinalidad_destino = cardDestino;
-
-    const esOrigBloqueado = this.esOrigenBloqueado(relacion);
-    const esDestBloqueado = this.esDestinoBloqueado(relacion);
-    const esOrigenSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'origen';
-    const esDestinoSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'destino';
+    const cardOrigen = (relacion.cardinalidad_origen || '').trim();
+    const cardDestino = (relacion.cardinalidad_destino || '').trim();
 
     const fondoBadgeNormal = modoOscuro ? '#18181B' : '#FFFFFF';
     const fondoBadgeSel = modoOscuro ? '#0B2545' : '#E0F2FE';
@@ -960,18 +932,18 @@ export class WhiteboardRelationshipService {
     const textoColorNormal = modoOscuro ? '#EDEDED' : '#111111';
     const textoColorBloqueado = modoOscuro ? '#888888' : '#777777';
 
-    const origenClases = 'capsula-cardinalidad' +
-      (esOrigenSel ? ' capsula-seleccionada' : '') +
-      (esOrigBloqueado ? ' capsula-bloqueada' : '');
+    const labels: joint.dia.Link.Label[] = [];
 
-    const destinoClases = 'capsula-cardinalidad' +
-      (esDestinoSel ? ' capsula-seleccionada' : '') +
-      (esDestBloqueado ? ' capsula-bloqueada' : '');
+    if (cardOrigen !== '') {
+      const esOrigBloqueado = this.esOrigenBloqueado(relacion);
+      const esOrigenSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'origen';
+      const origenClases = 'capsula-cardinalidad capsula-origen' +
+        (esOrigenSel ? ' capsula-seleccionada' : '') +
+        (esOrigBloqueado ? ' capsula-bloqueada' : '');
 
-    const labels: joint.dia.Link.Label[] = [
-      {
+      labels.push({
         attrs: {
-          root: { class: origenClases },
+          root: { class: origenClases, 'data-extremo': 'origen' },
           rect: {
             ref: 'text',
             fill: esOrigenSel ? fondoBadgeSel : fondoBadgeNormal,
@@ -997,10 +969,19 @@ export class WhiteboardRelationshipService {
           }
         },
         position: { distance: 38, offset: 0 }
-      },
-      {
+      });
+    }
+
+    if (cardDestino !== '') {
+      const esDestBloqueado = this.esDestinoBloqueado(relacion);
+      const esDestinoSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'destino';
+      const destinoClases = 'capsula-cardinalidad capsula-destino' +
+        (esDestinoSel ? ' capsula-seleccionada' : '') +
+        (esDestBloqueado ? ' capsula-bloqueada' : '');
+
+      labels.push({
         attrs: {
-          root: { class: destinoClases },
+          root: { class: destinoClases, 'data-extremo': 'destino' },
           rect: {
             ref: 'text',
             fill: esDestinoSel ? fondoBadgeSel : fondoBadgeNormal,
@@ -1026,8 +1007,8 @@ export class WhiteboardRelationshipService {
           }
         },
         position: { distance: -38, offset: 0 }
-      }
-    ];
+      });
+    }
 
     if (relacion.nombre_relacion && relacion.nombre_relacion.trim() !== '') {
       labels.push({
@@ -1109,12 +1090,12 @@ export class WhiteboardRelationshipService {
       this.actualizarEtiquetasCardinalidad(link, relacion, modoOscuro);
     }
 
-    const labelIdx = extremo === 'origen' ? 0 : 1;
     let targetG = labelG;
     if (link && this.paper) {
       const linkView = link.findView(this.paper) as joint.dia.LinkView | null;
       if (linkView) {
-        const foundG = linkView.el.querySelector(`g[label-idx="${labelIdx}"]`) as SVGGraphicsElement | null;
+        const foundG = (linkView.el.querySelector(`g.capsula-${extremo}`) ||
+                        linkView.el.querySelector(`g[data-extremo="${extremo}"]`)) as SVGGraphicsElement | null;
         if (foundG) targetG = foundG;
       }
     }
@@ -1206,7 +1187,7 @@ export class WhiteboardRelationshipService {
       if (!this.esDestinoBloqueado(rel)) {
         rel.cardinalidad_destino = cardinalidadDestino;
       } else {
-        rel.cardinalidad_destino = '1';
+        rel.cardinalidad_destino = cardinalidadDestino ? '1' : '';
       }
       rel.vertices = [];
       this.deseleccionarCapsula(modoOscuro);

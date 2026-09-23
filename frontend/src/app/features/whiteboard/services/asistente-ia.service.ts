@@ -431,8 +431,8 @@ export class AsistenteIaService {
 
       const idRelTemporal = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
       let tipoRelacion = this.normalizarTipoRelacion(rel.tipo);
-      let cardOrigen = this.normalizarCardinalidad(rel.cardinalidad_origen, '1');
-      let cardDestino = this.normalizarCardinalidad(rel.cardinalidad_destino, '0..*');
+      let cardOrigen = this.normalizarCardinalidad(rel.cardinalidad_origen, '');
+      let cardDestino = this.normalizarCardinalidad(rel.cardinalidad_destino, '');
 
       let claseAsocIdReal: number | null = null;
       if (rel.clase_asociacion_id !== undefined && rel.clase_asociacion_id !== null) {
@@ -700,7 +700,7 @@ export class AsistenteIaService {
     return 'asociacion';
   }
 
-  private normalizarCardinalidad(cardRaw: string | undefined, defecto: string): string {
+  private normalizarCardinalidad(cardRaw: string | undefined, defecto = ''): string {
     if (!cardRaw) return defecto;
     const c = cardRaw.trim();
     if (REGEX_CARDINALIDAD.test(c)) {
@@ -1150,8 +1150,8 @@ export class AsistenteIaService {
         }
 
         const tipoFinal = esMuchosAMuchos ? 'asociacion' : this.normalizarTipoRelacion(relIA.tipo);
-        const cardOrigFinal = esMuchosAMuchos ? '0..*' : this.normalizarCardinalidad(relIA.cardinalidad_origen, '1');
-        const cardDestFinal = esMuchosAMuchos ? '0..*' : this.normalizarCardinalidad(relIA.cardinalidad_destino, '0..*');
+        const cardOrigFinal = esMuchosAMuchos ? '0..*' : this.normalizarCardinalidad(relIA.cardinalidad_origen, '');
+        const cardDestFinal = esMuchosAMuchos ? '0..*' : this.normalizarCardinalidad(relIA.cardinalidad_destino, '');
 
         // Calcular puertos óptimos según la posición relativa de las cajas
         let puertoOrigen = 'right-1';

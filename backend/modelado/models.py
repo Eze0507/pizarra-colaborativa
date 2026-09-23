@@ -239,14 +239,14 @@ class Relacion(models.Model):
     )
     cardinalidad_origen = models.CharField(
         max_length=20,
-        default='1',
+        default='',
         blank=True,
         validators=[validador_cardinalidad],
         help_text="Multiplicidad o cardinalidad en la entidad de origen (ej. '1', '*', '0..1', '1..*')."
     )
     cardinalidad_destino = models.CharField(
         max_length=20,
-        default='1',
+        default='',
         blank=True,
         validators=[validador_cardinalidad],
         help_text="Multiplicidad o cardinalidad en la entidad de destino (ej. '1', '*', '0..1', '1..*')."

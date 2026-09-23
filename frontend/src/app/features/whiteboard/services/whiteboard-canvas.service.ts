@@ -625,10 +625,11 @@ export class WhiteboardCanvasService {
       if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
       const labelG = target?.closest?.('[label-idx]') as SVGGraphicsElement | null;
       if (labelG) {
-        const labelIdx = parseInt(labelG.getAttribute('label-idx') || '0', 10);
-        if (labelIdx === 0 || labelIdx === 1) {
+        const esOrigen = labelG.classList.contains('capsula-origen') || labelG.getAttribute('data-extremo') === 'origen';
+        const esDestino = labelG.classList.contains('capsula-destino') || labelG.getAttribute('data-extremo') === 'destino';
+        if (esOrigen || esDestino) {
           evt?.stopPropagation?.();
-          const extremo: 'origen' | 'destino' = labelIdx === 0 ? 'origen' : 'destino';
+          const extremo: 'origen' | 'destino' = esOrigen ? 'origen' : 'destino';
           const relId = this.relationshipService.getRelacionIdPorLinkId(linkView.model.id);
           if (relId !== null && this.lienzoContainer) {
             const res = this.relationshipService.seleccionarCapsula(relId, extremo, this.modoOscuro, labelG, this.lienzoContainer);
@@ -641,7 +642,7 @@ export class WhiteboardCanvasService {
     const abrirMenuContextualRelacion = (linkView: joint.dia.LinkView, evt: MouseEvent) => {
       const target = evt?.target as SVGElement;
       if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
-      if (target?.closest?.('[label-idx="0"]') || target?.closest?.('[label-idx="1"]')) return;
+      if (target?.closest?.('.capsula-cardinalidad')) return;
       if (this.relationshipService.esConectorAuxiliar(linkView.model.id)) return;
 
       evt?.preventDefault?.();

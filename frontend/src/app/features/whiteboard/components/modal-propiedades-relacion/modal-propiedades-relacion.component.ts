@@ -28,8 +28,8 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
   @Output() public readonly eliminar = new EventEmitter<number>();
 
   public nombreRelacion = '';
-  public cardinalidadOrigen = '0..*';
-  public cardinalidadDestino = '1';
+  public cardinalidadOrigen = '';
+  public cardinalidadDestino = '';
   public esComposicion = false;
   public tipoTexto = 'Asociación';
 
@@ -45,12 +45,8 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
 
   private cargarDatos(relacion: RelacionDiagrama): void {
     this.nombreRelacion = relacion.nombre_relacion || '';
-    const esCompOAgreg = relacion.tipo === 'composicion' || relacion.tipo === 'agregacion';
-    const defaultOrigen = esCompOAgreg ? '0..*' : '1';
-    const defaultDestino = esCompOAgreg ? '1' : '0..*';
-
-    this.cardinalidadOrigen = relacion.cardinalidad_origen || defaultOrigen;
-    this.cardinalidadDestino = relacion.cardinalidad_destino || defaultDestino;
+    this.cardinalidadOrigen = relacion.cardinalidad_origen || '';
+    this.cardinalidadDestino = relacion.cardinalidad_destino || '';
     this.esComposicion = relacion.tipo === 'composicion' || !!relacion.destino_bloqueado;
 
     switch (relacion.tipo) {
@@ -73,12 +69,20 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
   }
 
   public seleccionarPresetOrigen(valor: string): void {
-    this.cardinalidadOrigen = valor;
+    if (this.cardinalidadOrigen === valor) {
+      this.cardinalidadOrigen = '';
+    } else {
+      this.cardinalidadOrigen = valor;
+    }
   }
 
   public seleccionarPresetDestino(valor: string): void {
     if (this.esComposicion) return;
-    this.cardinalidadDestino = valor;
+    if (this.cardinalidadDestino === valor) {
+      this.cardinalidadDestino = '';
+    } else {
+      this.cardinalidadDestino = valor;
+    }
   }
 
   public onGuardar(): void {
@@ -88,7 +92,7 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
       relacionId: this.relacion.id,
       nombre: this.nombreRelacion.trim(),
       cardinalidadOrigen: this.cardinalidadOrigen.trim(),
-      cardinalidadDestino: this.esComposicion ? '1' : this.cardinalidadDestino.trim()
+      cardinalidadDestino: this.esComposicion ? (this.cardinalidadDestino.trim() ? '1' : '') : this.cardinalidadDestino.trim()
     });
   }
 

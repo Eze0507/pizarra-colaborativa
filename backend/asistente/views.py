@@ -54,8 +54,8 @@ REGLAS ESTRICTAS DE MODELADO Y TIPADO:
     - "herencia"
   * "entidad_origen_id": entero que coincide con el "id" de la entidad origen (en "agregacion" y "composicion", DEBE ser la PARTE; en "herencia", DEBE ser la subclase / hijo).
   * "entidad_destino_id": entero que coincide con el "id" de la entidad destino (en "agregacion" y "composicion", DEBE ser el CONTENEDOR / TODO donde se dibuja el rombo; en "herencia", DEBE ser la superclase / padre).
-  * "cardinalidad_origen": multiplicidad en el origen. DEBE coincidir con el formato regex UML: "1", "*", "0..1", "1..*", o "0..*" (para agregacion/composicion suele ser "0..*" o "1..*").
-  * "cardinalidad_destino": multiplicidad en el destino. DEBE coincidir con el formato regex UML: "1", "*", "0..1", "1..*", o "0..*" (para agregacion/composicion suele ser "1").
+  * "cardinalidad_origen": multiplicidad en el origen si está escrita en el boceto (ej. "1", "*", "0..1", "1..*", "0..*"). Si en el boceto NO hay ninguna multiplicidad o número escrito en este extremo, DEBES poner "" (cadena vacía). NUNCA inventes o asumas multiplicidades por defecto.
+  * "cardinalidad_destino": multiplicidad en el destino si está escrita en el boceto (ej. "1", "*", "0..1", "1..*", "0..*"). Si en el boceto NO hay ninguna multiplicidad o número escrito en este extremo, DEBES poner "" (cadena vacía). NUNCA inventes o asumas multiplicidades por defecto.
   * "clase_asociacion_id": entero o null. Si la relación es Muchos a Muchos (M:M) o Clase de Asociación, aquí colocas el "id" de la tabla intermedia que creaste en "entidades". Si es una relación regular (1:N, 1:1), coloca null.
 
 REGLA ESTRICTA PARA RELACIONES DE MUCHOS A MUCHOS (M:M) Y CLASES DE ASOCIACIÓN:
@@ -360,8 +360,8 @@ REGLAS ESTRICTAS DE RESPUESTA:
       "entidad_destino_id": null,
       "entidad_origen_nombre": "cliente",
       "entidad_destino_nombre": "pedido",
-      "cardinalidad_origen": "1",
-      "cardinalidad_destino": "0..*",
+      "cardinalidad_origen": "",
+      "cardinalidad_destino": "",
       "clase_asociacion_nombre": null
     }
   ],
@@ -400,9 +400,9 @@ REGLAS DE INTERPRETACIÓN:
 4. Si el usuario pide relacionar dos entidades:
    - Busca las entidades por nombre en "contexto_diagrama" o en "entidades_a_crear".
    - "tipo": "asociacion" por defecto a menos que se pida "composicion", "agregacion" o "herencia".
-   - En "composicion" o "agregacion": "entidad_origen_nombre" DEBE ser la PARTE (cardinalidad_origen="0..*") y "entidad_destino_nombre" DEBE ser el CONTENEDOR / TODO donde se dibuja el rombo (cardinalidad_destino="1").
+   - En "composicion" o "agregacion": "entidad_origen_nombre" DEBE ser la PARTE y "entidad_destino_nombre" DEBE ser el CONTENEDOR / TODO donde se dibuja el rombo.
    - En "herencia": "entidad_origen_nombre" es la subclase (hijo) y "entidad_destino_nombre" es la superclase (padre).
-   - En "asociacion": cardinalidades por defecto "1" en origen y "0..*" en destino (1 a N) a menos que se especifique otra multiplicidad (1 a 1, etc.).
+   - Cardinalidades: NO asignes cardinalidades por defecto. Deja "cardinalidad_origen": "" y "cardinalidad_destino": "" (vacías) a menos que el usuario solicite explícitamente multiplicidades (ej. "1 a N", "1 a 1", etc.).
    - Especifica siempre "entidad_origen_nombre" y "entidad_destino_nombre".
 5. ÓRDENES COMPUESTAS (CREAR Y RELACIONAR SIMULTÁNEAMENTE):
    - Si el usuario pide crear una entidad (con X atributos) y en el mismo pedido relacionarla con otra (sea existente o también creada):

@@ -39,8 +39,12 @@ export class WhiteboardApiService {
       const deSnapshot = snapshotMap.get(r.id);
       const tipo = r.tipo;
       idsAgregados.add(r.id);
-      let cardOrig = r.cardinalidad_origen || deSnapshot?.cardinalidad_origen || (tipo !== 'herencia' ? '1' : '');
-      let cardDest = r.cardinalidad_destino || deSnapshot?.cardinalidad_destino || (tipo !== 'herencia' ? '0..*' : '');
+      let cardOrig = (r.cardinalidad_origen !== undefined && r.cardinalidad_origen !== null)
+        ? r.cardinalidad_origen
+        : (deSnapshot?.cardinalidad_origen ?? '');
+      let cardDest = (r.cardinalidad_destino !== undefined && r.cardinalidad_destino !== null)
+        ? r.cardinalidad_destino
+        : (deSnapshot?.cardinalidad_destino ?? '');
       if (cardOrig === '*') cardOrig = '0..*';
       if (cardDest === '*') cardDest = '0..*';
 

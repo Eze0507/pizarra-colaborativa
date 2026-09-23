@@ -647,8 +647,8 @@ class PizarraConsumer(AsyncWebsocketConsumer):
                         p_orig = r_item.get('puerto_origen') or ''
                         p_dest = r_item.get('puerto_destino') or ''
                         nom_rel = r_item.get('nombre_relacion') or ''
-                        card_orig = r_item.get('cardinalidad_origen') or ('1' if tipo != 'herencia' else '')
-                        card_dest = r_item.get('cardinalidad_destino') or ('1' if tipo != 'herencia' else '')
+                        card_orig = r_item.get('cardinalidad_origen') or ''
+                        card_dest = r_item.get('cardinalidad_destino') or ''
 
                         if raw_rel_id is None or int(raw_rel_id) <= 0:
                             nueva_rel = Relacion(
