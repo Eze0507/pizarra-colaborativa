@@ -104,7 +104,7 @@ class XMIExporter:
         """Agrega los ownedAttribute de una entidad a su elemento XML correspondiente."""
         for attr in entidad.atributos.all().order_by('orden', 'id'):
             attr_id = self._generar_eaid("EAID")
-            attr_elem = ET.SubElement(clase_elem, 'ownedAttribute', {
+            attr_dict = {
                 f'{{{XMI_NS}}}type': 'uml:Property',
                 f'{{{XMI_NS}}}id': attr_id,
                 'name': attr.nombre,
@@ -115,7 +115,11 @@ class XMIExporter:
                 'isOrdered': 'false',
                 'isUnique': 'true',
                 'isDerivedUnion': 'false',
-            })
+            }
+            if attr.es_clave:
+                attr_dict['isID'] = 'true'
+
+            attr_elem = ET.SubElement(clase_elem, 'ownedAttribute', attr_dict)
 
             # Multiplicidad 1..1 para mantener el diagrama limpio en Enterprise Architect
             # (evita que EA renderice el sufijo '[0..1]' en el texto del diagrama para campos nulos)

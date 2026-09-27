@@ -157,6 +157,73 @@ class XMIImporter:
 
         return (p_orig, p_dest)
 
+    def _extraer_atributos_pk_ea(self, root: ET.Element) -> Tuple[set, set]:
+        """
+        Escanea las extensiones de Enterprise Architect (<xmi:Extension>) buscando atributos
+        que tengan activada la propiedad 'is ID' (isID=1 / isID=true) o estereotipo PK.
+        Retorna:
+            - pk_ids: Conjunto de IDs de atributos (xmi:idref / xmi:id).
+            - pk_class_attr_names: Conjunto de tuplas (class_idref, nombre_attr_lower) para respaldo.
+        """
+        pk_ids = set()
+        pk_class_attr_names = set()
+
+        for elem in root.iter():
+            tag = self._limpiar_tag(elem)
+            if tag == 'element':
+                class_idref = self._obtener_attr(elem, 'idref') or self._obtener_attr(elem, 'id')
+                for child in elem:
+                    if self._limpiar_tag(child) == 'attributes':
+                        for attr_elem in child:
+                            if self._limpiar_tag(attr_elem) == 'attribute':
+                                attr_id = self._obtener_attr(attr_elem, 'idref') or self._obtener_attr(attr_elem, 'id')
+                                attr_name = attr_elem.attrib.get('name')
+
+                                is_pk = False
+
+                                # 1. Revisar xrefs de EA: @PROP=@NAME=isID@ENDNAME;@TYPE=Boolean@ENDTYPE;@VALU=1@ENDVALU;
+                                xrefs_val = ''
+                                for x in attr_elem:
+                                    if self._limpiar_tag(x) == 'xrefs':
+                                        xrefs_val = x.attrib.get('value', '') or (x.text or '')
+                                xrefs_val += attr_elem.attrib.get('xrefs', '')
+
+                                if '@NAME=isID@ENDNAME;' in xrefs_val and ('@VALU=1@ENDVALU;' in xrefs_val or '@VALU=true@ENDVALU;' in xrefs_val):
+                                    is_pk = True
+
+                                # 2. Revisar estereotipo PK (<stereotype name="PK"/> o atributo stereotype="PK")
+                                for s in attr_elem:
+                                    if self._limpiar_tag(s) == 'stereotype':
+                                        st_val = s.attrib.get('name') or s.attrib.get('value') or s.text or ''
+                                        if 'PK' in st_val.upper() or 'PRIMARYKEY' in st_val.upper():
+                                            is_pk = True
+                                st_attr = attr_elem.attrib.get('stereotype', '')
+                                if 'PK' in st_attr.upper() or 'PRIMARYKEY' in st_attr.upper():
+                                    is_pk = True
+
+                                # 3. Revisar tags de EA (<tags><tag name="isID" value="1"/></tags>)
+                                for tg in attr_elem:
+                                    if self._limpiar_tag(tg) == 'tags':
+                                        for t in tg:
+                                            t_name = (t.attrib.get('name') or '').lower()
+                                            t_val = (t.attrib.get('value') or t.text or '').lower()
+                                            if t_name in ('isid', 'pk', 'primarykey') and t_val in ('1', 'true', 'yes'):
+                                                is_pk = True
+
+                                # 4. Revisar properties de EA (<properties isID="1" ... />)
+                                for pr in attr_elem:
+                                    if self._limpiar_tag(pr) == 'properties':
+                                        if pr.attrib.get('isID') in ('1', 'true', True) or pr.attrib.get('isId') in ('1', 'true', True):
+                                            is_pk = True
+
+                                if is_pk:
+                                    if attr_id:
+                                        pk_ids.add(attr_id)
+                                    if class_idref and attr_name:
+                                        pk_class_attr_names.add((class_idref, attr_name.strip().lower()))
+
+        return pk_ids, pk_class_attr_names
+
     def importar_xml(self, contenido_xml: str, reemplazar_existente: bool = True) -> Dict[str, Any]:
         """
         Parsea el contenido XML e inserta las entidades, atributos y relaciones en la base de datos.
@@ -166,6 +233,9 @@ class XMIImporter:
             contenido_xml = contenido_xml.decode('utf-8', errors='replace')
 
         root = ET.fromstring(contenido_xml)
+
+        # 0. Extraer atributos definidos explícitamente como Primary Key en Enterprise Architect (<xmi:Extension>)
+        ea_pk_ids, ea_pk_class_attr_names = self._extraer_atributos_pk_ea(root)
 
         # 1. Localizar el contenedor <uml:Model> de forma insensible a namespaces
         model_node = None
@@ -265,12 +335,26 @@ class XMIImporter:
                             es_nulo = (lower_val == '0')
 
                             # Detección de clave primaria
-                            nombre_lower = attr_name.lower().strip()
-                            es_clave = (
-                                nombre_lower == 'id' or
-                                nombre_lower.startswith('id_') or
-                                nombre_lower.endswith('_id') or
-                                nombre_lower in ('pk', 'codigo')
+                            # Se marca es_clave=True ÚNICAMENTE si está explícitamente definido como tal:
+                            # 1. En UML estándar: atributo isID="true" / isID="1" o estereotipo PK en <ownedAttribute>
+                            # 2. En Enterprise Architect: registrado con isID=1 en <xmi:Extension> (xrefs, stereotype, tags, properties)
+                            attr_id = self._obtener_attr(child, 'id')
+                            is_id_uml = (
+                                child.attrib.get('isID') in ('true', '1', True) or
+                                child.attrib.get('isId') in ('true', '1', True)
+                            )
+
+                            child_stereo = child.attrib.get('stereotype', '')
+                            for c in child:
+                                if self._limpiar_tag(c) == 'stereotype':
+                                    child_stereo += ' ' + (c.attrib.get('name') or c.attrib.get('value') or c.text or '')
+                            is_pk_stereo = 'PK' in child_stereo.upper() or 'PRIMARYKEY' in child_stereo.upper()
+
+                            es_clave = bool(
+                                is_id_uml or
+                                is_pk_stereo or
+                                (attr_id and attr_id in ea_pk_ids) or
+                                (elem_id and attr_name and (elem_id, attr_name.strip().lower()) in ea_pk_class_attr_names)
                             )
 
                             attrs_list.append({
