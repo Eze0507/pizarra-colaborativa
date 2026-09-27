@@ -353,7 +353,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     } else if (evento.tipo === 'editar_atributo' && evento.atributoIndex !== null && entidad.atributos) {
       if (valor.length > 0) {
         const actual = entidad.atributos[evento.atributoIndex];
-        entidad.atributos[evento.atributoIndex] = this.parserService.parsearAtributoTexto(valor, actual.orden, actual.id);
+        entidad.atributos[evento.atributoIndex] = this.parserService.parsearAtributoTexto(valor, actual.orden, actual.id, actual.es_nulo);
       } else {
         entidad.atributos.splice(evento.atributoIndex, 1);
         entidad.atributos.forEach((a, i) => a.orden = i + 1);

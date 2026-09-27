@@ -127,9 +127,8 @@ export class EditorInlineComponent implements OnInit, OnDestroy, OnChanges {
         this.atributoIndex = ev.index;
 
         const pkStr = attr.es_clave ? '[pk] ' : '';
-        const optStr = attr.es_nulo ? '?' : '';
         const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').trim();
-        this.valor = `${pkStr}- ${nombreLimpio}: ${attr.tipo}${optStr}`;
+        this.valor = `${pkStr}- ${nombreLimpio}: ${attr.tipo}`;
         this.editorValor = this.valor;
         this.placeholder = 'Ej: - nombre: string (vacío para eliminar)';
         this.posicion = pos;

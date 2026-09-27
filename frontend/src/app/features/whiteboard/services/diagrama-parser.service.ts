@@ -8,10 +8,10 @@ export class DiagramaParserService {
   /**
    * Parsea de forma inteligente el texto ingresado por el usuario para extraer nombre, tipo, PK y nulidad.
    */
-  public parsearAtributoTexto(input: string, orden: number, id: number): AtributoDiagrama {
+  public parsearAtributoTexto(input: string, orden: number, id: number, esNuloPorDefecto?: boolean): AtributoDiagrama {
     let limpio = input.trim();
     let esClave = false;
-    let esNulo = false;
+    let esNulo = esNuloPorDefecto ?? false;
 
     // 1. Detectar corchetes [pk] o [PK]
     if (/\[\s*pk\s*\]/i.test(limpio)) {
@@ -32,7 +32,10 @@ export class DiagramaParserService {
     limpio = limpio.replace(/^[-+~#]\s*/, '').trim();
 
     // 5. Detectar nulabilidad
-    if (limpio.endsWith('?') || /\bnull\b/i.test(limpio)) {
+    if (/\bnot\s+null\b/i.test(limpio)) {
+      esNulo = false;
+      limpio = limpio.replace(/\bnot\s+null\b/gi, '').trim();
+    } else if (limpio.endsWith('?') || /\bnull\b/i.test(limpio)) {
       esNulo = true;
       limpio = limpio.replace(/\?|\bnull\b/gi, '').trim();
     }

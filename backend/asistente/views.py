@@ -69,8 +69,8 @@ Toda relación de Muchos a Muchos (M:M, N:M) o Clase de Asociación (sea que en 
 2. En "relaciones", define una ÚNICA relación de tipo 'asociacion' directamente entre las dos tablas principales:
    - "entidad_origen_id": id de la primera tabla principal.
    - "entidad_destino_id": id de la segunda tabla principal.
-   - "cardinalidad_origen": "0..*" (o "1..*" o "*").
-   - "cardinalidad_destino": "0..*" (o "1..*" o "*").
+   - "cardinalidad_origen": multiplicidad si está escrita explícitamente en el boceto (ej. "1", "*", "0..1", "1..*", "0..*"). Si en el boceto NO hay multiplicidad o números dibujados en este extremo, DEBES poner "" (cadena vacía). ¡ESTRICTAMENTE PROHIBIDO inventar o poner "0..*" por defecto si no está dibujado en la imagen!
+   - "cardinalidad_destino": multiplicidad si está escrita explícitamente en el boceto (ej. "1", "*", "0..1", "1..*", "0..*"). Si en el boceto NO hay multiplicidad o números dibujados en este extremo, DEBES poner "" (cadena vacía). ¡ESTRICTAMENTE PROHIBIDO inventar o poner "0..*" por defecto si no está dibujado en la imagen!
    - "clase_asociacion_id": el "id" numérico de la tabla intermedia creada en el paso 1.
 ¡CRÍTICO!: NUNCA crees dos relaciones separadas y directas hacia la tabla intermedia. En este modelador conceptual, la tabla intermedia NO recibe flechas directas; se vincula exclusivamente a través de "clase_asociacion_id" en la relación principal (lo que hace que la herramienta dibuje automáticamente el conector punteado oficial UML hacia el centro de la relación).
 IMPORTANTE: "es_intermedia" DEBE SER FALSE para todas las entidades normales que no sean una tabla intermedia / clase de asociación.
@@ -146,8 +146,8 @@ Debes responder EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estru
       "tipo": "asociacion",
       "entidad_origen_id": 1,
       "entidad_destino_id": 2,
-      "cardinalidad_origen": "0..*",
-      "cardinalidad_destino": "0..*",
+      "cardinalidad_origen": "",
+      "cardinalidad_destino": "",
       "clase_asociacion_id": 3
     }
   ]

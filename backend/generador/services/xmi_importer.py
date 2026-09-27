@@ -73,9 +73,9 @@ class XMIImporter:
         l_val = (lower or '').strip()
         u_val = (upper or '').strip()
 
-        # Defaults UML cuando no se especifican
+        # Si no se especifica ni lowerValue ni upperValue, la relación no tiene cardinalidad en este extremo
         if not l_val and not u_val:
-            return '1'
+            return ''
 
         u_is_unlimited = (u_val in ('*', '-1'))
         u_num = -1 if u_is_unlimited else (int(u_val) if u_val.isdigit() else 1)
@@ -287,9 +287,11 @@ class XMIImporter:
                 }
 
                 # Si es AssociationClass, registrarla también como asociación
+                # IMPORTANTE: En UML, elem_name es el nombre de la clase/tabla intermedia (ej. userColaborador),
+                # NO debe usarse como nombre o etiqueta de la relación a menos que se haya definido explícitamente en el conector.
                 if is_assoc_class:
                     raw_associations[elem_id] = {
-                        'name': elem_name,
+                        'name': '',
                         'is_assoc_class': True,
                         'ends': [],
                     }
@@ -297,7 +299,7 @@ class XMIImporter:
             # --- B. ASOCIACIONES ---
             elif elem_type in ('uml:Association', 'Association') and elem_id:
                 raw_associations[elem_id] = {
-                    'name': elem_name,
+                    'name': elem_name or '',
                     'is_assoc_class': False,
                     'ends': [],
                 }
@@ -339,6 +341,81 @@ class XMIImporter:
             if assoc_id in raw_associations:
                 raw_associations[assoc_id]['ends'].extend(extra_ends)
 
+        # 4. Extraer nombres/etiquetas explícitas de conectores desde la extensión de Enterprise Architect (si existe)
+        # En Enterprise Architect, el conector para una clase de asociación se vincula mediante:
+        # <connector ...><extendedProperties associationclass="EAID_clase_intermedia" .../></connector>
+        # Solo si el conector tiene un nombre o etiqueta 'mt' explícita distinta del nombre de la tabla,
+        # se debe asignar como nombre_relacion.
+        for elem in root.iter():
+            if self._limpiar_tag(elem) == 'connector':
+                conn_name = elem.attrib.get('name')
+                assoc_class_target = None
+                for child in elem:
+                    ctag = self._limpiar_tag(child)
+                    if ctag == 'labels' and not conn_name:
+                        conn_name = child.attrib.get('mt')
+                    elif ctag == 'extendedProperties':
+                        assoc_class_target = child.attrib.get('associationclass')
+
+                final_name = (conn_name or '').strip()
+
+                # Caso AssociationClass: solo asignar si en Architect se nombró explícitamente el conector
+                if assoc_class_target and assoc_class_target in raw_associations:
+                    class_name = raw_classes.get(assoc_class_target, {}).get('nombre', '')
+                    if final_name and final_name.lower() != class_name.lower():
+                        raw_associations[assoc_class_target]['name'] = final_name
+                    else:
+                        raw_associations[assoc_class_target]['name'] = ''
+
+                # Caso Asociación estándar sin nombre en UML pero con nombre en el conector de EA
+                conn_idref = self._obtener_attr(elem, 'idref')
+                if conn_idref and conn_idref in raw_associations and not raw_associations[conn_idref].get('is_assoc_class'):
+                    if not raw_associations[conn_idref]['name'] and final_name:
+                        raw_associations[conn_idref]['name'] = final_name
+
+        # 5. Extraer coordenadas visuales desde la sección <diagrams> de Enterprise Architect (si existe)
+        # Esto permite preservar exactamente la distribución espacial (arriba/abajo, izquierda/derecha)
+        # en lugar de reordenar las entidades en una cuadrícula horizontal arbitraria.
+        ea_diagram_positions: Dict[str, Dict[str, float]] = {}
+        for elem in root.iter():
+            tag = self._limpiar_tag(elem)
+            if tag == 'element' and 'geometry' in elem.attrib and 'subject' in elem.attrib:
+                geo = elem.attrib['geometry']
+                if 'Left=' in geo and 'Top=' in geo:
+                    subject = elem.attrib['subject']
+                    parts = {}
+                    for item in geo.split(';'):
+                        if '=' in item:
+                            k, v = item.split('=', 1)
+                            parts[k.strip()] = v.strip()
+                    if 'Left' in parts and 'Top' in parts:
+                        try:
+                            left_val = float(parts['Left'])
+                            top_val = float(parts['Top'])
+                            right_val = float(parts.get('Right', left_val + 220.0))
+                            bottom_val = float(parts.get('Bottom', top_val + 150.0))
+
+                            x = left_val
+                            if top_val < 0 and bottom_val < 0:
+                                y = min(abs(top_val), abs(bottom_val))
+                            else:
+                                y = min(top_val, bottom_val)
+
+                            w = max(abs(right_val - left_val), 200.0)
+                            ea_diagram_positions[subject] = {'x': x, 'y': y, 'w': w}
+                        except ValueError:
+                            pass
+
+        # Normalizar posiciones del diagrama para que inicien en un margen visible seguro (80px, 80px)
+        if ea_diagram_positions:
+            min_x = min(p['x'] for p in ea_diagram_positions.values())
+            min_y = min(p['y'] for p in ea_diagram_positions.values())
+            shift_x = 80.0 - min_x
+            shift_y = 80.0 - min_y
+            for p in ea_diagram_positions.values():
+                p['x'] = round(p['x'] + shift_x, 1)
+                p['y'] = round(p['y'] + shift_y, 1)
+
         # =========================================================================
         # PROCESAMIENTO EN DOS PASADAS (TWO-PASS PARSING)
         # =========================================================================
@@ -357,11 +434,27 @@ class XMIImporter:
             # PASADA 1: Creación de Entidades y Atributos (Classes y AssociationClasses)
             # ---------------------------------------------------------------------
             cols = 3
+            missing_idx = 0
+            max_y = max((p['y'] for p in ea_diagram_positions.values()), default=80.0)
+
             for idx, (eaid, class_data) in enumerate(raw_classes.items()):
-                row = idx // cols
-                col = idx % cols
-                coord_x = 80.0 + col * 340.0
-                coord_y = 80.0 + row * 260.0
+                if eaid in ea_diagram_positions:
+                    coord_x = ea_diagram_positions[eaid]['x']
+                    coord_y = ea_diagram_positions[eaid]['y']
+                    ancho = ea_diagram_positions[eaid]['w']
+                else:
+                    if ea_diagram_positions:
+                        col = missing_idx % cols
+                        row = missing_idx // cols
+                        coord_x = 80.0 + col * 340.0
+                        coord_y = max_y + 160.0 + row * 260.0
+                        missing_idx += 1
+                    else:
+                        row = idx // cols
+                        col = idx % cols
+                        coord_x = 80.0 + col * 340.0
+                        coord_y = 80.0 + row * 260.0
+                    ancho = 220.0
 
                 entidad = Entidad.objects.create(
                     proyecto=self.proyecto,
@@ -369,7 +462,7 @@ class XMIImporter:
                     estado=Entidad.Estado.ACTIVO,
                     coord_x=coord_x,
                     coord_y=coord_y,
-                    ancho=220.0,
+                    ancho=ancho,
                     es_intermedia=class_data['es_intermedia'],
                 )
                 eaid_to_entidad[eaid] = entidad
@@ -439,18 +532,11 @@ class XMIImporter:
                     card_orig = self._formatear_cardinalidad(end_orig.get('lower'), end_orig.get('upper'))
                     card_dest = self._formatear_cardinalidad(end_dest.get('lower'), end_dest.get('upper'))
 
-                    # Para clases de asociación N:M sin multiplicidad explícita, default UML a 0..*
-                    if ent_intermedia:
-                        if not end_orig.get('lower') and not end_orig.get('upper'):
-                            card_orig = '0..*'
-                        if not end_dest.get('lower') and not end_dest.get('upper'):
-                            card_dest = '0..*'
-
-                    # Validar contra regex del modelo
-                    if not re.match(r'^([0-9]+|\*|[0-9]+\.\.([0-9]+|\*))$', card_orig):
-                        card_orig = '0..*' if ent_intermedia else '1'
-                    if not re.match(r'^([0-9]+|\*|[0-9]+\.\.([0-9]+|\*))$', card_dest):
-                        card_dest = '0..*' if ent_intermedia else '1'
+                    # Validar contra regex del modelo solo si se especificó cardinalidad
+                    if card_orig and not re.match(r'^([0-9]+|\*|[0-9]+\.\.([0-9]+|\*))$', card_orig):
+                        card_orig = ''
+                    if card_dest and not re.match(r'^([0-9]+|\*|[0-9]+\.\.([0-9]+|\*))$', card_dest):
+                        card_dest = ''
 
                     puerto_orig, puerto_dest = self._calcular_puertos_relacion(origen_ent, destino_ent, uso_puertos)
 
@@ -483,8 +569,8 @@ class XMIImporter:
                         clase_asociacion=None,
                         nombre_relacion='',
                         tipo=Relacion.Tipo.HERENCIA,
-                        cardinalidad_origen='1',
-                        cardinalidad_destino='1',
+                        cardinalidad_origen='',
+                        cardinalidad_destino='',
                         puerto_origen=puerto_sub,
                         puerto_destino=puerto_sup,
                     )

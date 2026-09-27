@@ -420,14 +420,19 @@ export class AsistenteIaService {
           const idRelTemp = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
           const puertos = this.calcularPuertosRelacion(tempIdA, tempIdB, entidadesMap, conteoPares);
 
+          const origConn1 = resolverEntidadId(conn1.rel.entidad_origen_id);
+          const rawCardA = origConn1 === tempIdA ? conn1.rel.cardinalidad_origen : conn1.rel.cardinalidad_destino;
+          const origConn2 = resolverEntidadId(conn2.rel.entidad_origen_id);
+          const rawCardB = origConn2 === tempIdB ? conn2.rel.cardinalidad_origen : conn2.rel.cardinalidad_destino;
+
           relacionesNormalizadas.push({
             id: idRelTemp,
             nombre_relacion: (conn1.rel.nombre_relacion || conn2.rel.nombre_relacion || '').trim(),
             tipo: 'asociacion',
             entidad_origen_id: tempIdA,
             entidad_destino_id: tempIdB,
-            cardinalidad_origen: '0..*',
-            cardinalidad_destino: '0..*',
+            cardinalidad_origen: this.normalizarCardinalidad(rawCardA, ''),
+            cardinalidad_destino: this.normalizarCardinalidad(rawCardB, ''),
             clase_asociacion_id: entIntermediaId,
             puerto_origen: puertos.origen,
             puerto_destino: puertos.destino,
@@ -470,8 +475,6 @@ export class AsistenteIaService {
           intermediasEnlazadas.add(claseAsocIdReal);
         }
         tipoRelacion = 'asociacion';
-        cardOrigen = '0..*';
-        cardDestino = '0..*';
       } else if (esMuchosAMuchos) {
         // Relación directa de Muchos a Muchos sin clase de asociación explícita:
         // Buscar si hay alguna entidad intermedia huérfana no vinculada
@@ -521,8 +524,6 @@ export class AsistenteIaService {
         }
 
         tipoRelacion = 'asociacion';
-        cardOrigen = '0..*';
-        cardDestino = '0..*';
       }
 
       const puertos = this.calcularPuertosRelacion(origIdReal, destIdReal, entidadesMap, conteoPares);
@@ -583,8 +584,6 @@ export class AsistenteIaService {
           if (relExistente) {
             relExistente.clase_asociacion_id = entHuerfana.id;
             relExistente.tipo = 'asociacion';
-            relExistente.cardinalidad_origen = '0..*';
-            relExistente.cardinalidad_destino = '0..*';
             intermediasEnlazadas.add(entHuerfana.id);
           } else {
             // Crear la relación faltante entre A y B con la clase de asociación
@@ -596,8 +595,8 @@ export class AsistenteIaService {
               tipo: 'asociacion',
               entidad_origen_id: idA,
               entidad_destino_id: idB,
-              cardinalidad_origen: '0..*',
-              cardinalidad_destino: '0..*',
+              cardinalidad_origen: '',
+              cardinalidad_destino: '',
               clase_asociacion_id: entHuerfana.id,
               puerto_origen: puertos.origen,
               puerto_destino: puertos.destino,
@@ -1171,8 +1170,8 @@ export class AsistenteIaService {
         }
 
         const tipoFinal = esMuchosAMuchos ? 'asociacion' : this.normalizarTipoRelacion(relIA.tipo);
-        const cardOrigFinal = esMuchosAMuchos ? '0..*' : this.normalizarCardinalidad(relIA.cardinalidad_origen, '');
-        const cardDestFinal = esMuchosAMuchos ? '0..*' : this.normalizarCardinalidad(relIA.cardinalidad_destino, '');
+        const cardOrigFinal = this.normalizarCardinalidad(relIA.cardinalidad_origen, '');
+        const cardDestFinal = this.normalizarCardinalidad(relIA.cardinalidad_destino, '');
 
         // Calcular puertos óptimos según la posición relativa de las cajas
         let puertoOrigen = 'right-1';

@@ -67,8 +67,7 @@ export class WhiteboardEntityService {
       for (const attr of entidad.atributos) {
         const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').replace(/\[\s*\]/g, '').trim();
         const pk = attr.es_clave ? '[PK] ' : '     ';
-        const opt = attr.es_nulo ? '?' : '';
-        const linea = `${pk}- ${nombreLimpio} : ${attr.tipo}${opt}`;
+        const linea = `${pk}- ${nombreLimpio} : ${attr.tipo}`;
         const anchoLinea = this.medirAnchoTexto(linea, '400 11px "JetBrains Mono", monospace') + PADDING_HORIZONTAL;
         if (anchoLinea > maxAnchoAtributos) {
           maxAnchoAtributos = anchoLinea;
@@ -247,8 +246,7 @@ function generarGruposPuertos(tema: TemaColores) {
       ordenados.forEach(attr => {
         const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').replace(/\[\s*\]/g, '').trim();
         const pk = attr.es_clave ? '[PK] ' : '     ';
-        const opt = attr.es_nulo ? '?' : '';
-        lineas.push(`${pk}- ${nombreLimpio} : ${attr.tipo}${opt}`);
+        lineas.push(`${pk}- ${nombreLimpio} : ${attr.tipo}`);
       });
     }
 
