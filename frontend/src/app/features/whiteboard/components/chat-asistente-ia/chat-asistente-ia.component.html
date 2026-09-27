@@ -56,7 +56,7 @@
           </svg>
         </div>
         <p class="vacio-texto">
-          ¡Hola! Soy tu asistente de diseño. Puedes pedirme por voz o texto tareas como:
+          ¡Hola! Soy tu asistente de diseño. Mantén presionada la tecla <kbd class="kbd-espacio">Espacio</kbd> para hablar o escribe tu tarea abajo:
         </p>
         <ul class="vacio-lista">
           <li>"Crear tabla Proveedor con id y teléfono"</li>
@@ -94,8 +94,11 @@
       <!-- Banner de Grabación de Voz -->
       <div *ngIf="escuchandoMicrofono" class="voz-banner">
         <span class="voz-pulso"></span>
-        <span class="voz-texto">Escuchando... Di tu orden ahora</span>
-        <button type="button" class="btn-voz-terminar" (click)="detenerMicrofono()">Listo</button>
+        <div class="voz-info">
+          <span class="voz-texto">Grabando voz...</span>
+          <span class="voz-subtexto">Suelta <kbd class="kbd-espacio">Espacio</kbd> o presiona Enviar</span>
+        </div>
+        <button type="button" class="btn-voz-terminar" (click)="detenerMicrofonoYEnviar()">Enviar</button>
       </div>
 
       <!-- Caja de Entrada y Botones -->
@@ -117,7 +120,7 @@
             class="btn-accion-input btn-microfono"
             [class.microfono-activo]="escuchandoMicrofono"
             (click)="alternarMicrofono()"
-            [title]="escuchandoMicrofono ? 'Detener dictado' : 'Dictar por voz'"
+            [title]="escuchandoMicrofono ? 'Detener y enviar' : 'Mantén presionado [Espacio] para hablar'"
             [disabled]="cargandoInstruccion"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -152,7 +155,7 @@
     [class.fab-abierto]="chatAbierto"
     [class.fab-grabando]="escuchandoMicrofono"
     (click)="toggleChat()"
-    [title]="chatAbierto ? 'Minimizar asistente IA' : 'Abrir asistente IA (Chat y Voz)'"
+    [title]="chatAbierto ? 'Minimizar asistente IA' : 'Abrir asistente IA (Mantén [Espacio] para hablar)'"
     aria-label="Abrir asistente de tareas IA"
   >
     <!-- Efecto Glow de Resplandor IA -->

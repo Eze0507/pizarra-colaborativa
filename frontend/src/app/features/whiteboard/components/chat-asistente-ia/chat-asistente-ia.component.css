@@ -468,7 +468,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   margin-bottom: 8px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.35);
@@ -478,11 +478,13 @@
 }
 
 .voz-pulso {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background-color: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
   animation: pulso-rojo 1s infinite alternate;
+  flex-shrink: 0;
 }
 
 @keyframes pulso-rojo {
@@ -490,19 +492,50 @@
   100% { opacity: 1; transform: scale(1.2); }
 }
 
-.voz-texto {
+.voz-info {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.voz-texto {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.voz-subtexto {
+  font-size: 10px;
+  color: var(--chat-text-secondary, #aaaaaa);
+  line-height: 1.2;
+}
+
+.kbd-espacio {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  line-height: 1.2;
+  margin: 0 2px;
 }
 
 .btn-voz-terminar {
   background: rgba(239, 68, 68, 0.25);
   border: 1px solid #ef4444;
   color: #ef4444;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
 .btn-voz-terminar:hover {

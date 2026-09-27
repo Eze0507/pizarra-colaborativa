@@ -76,6 +76,11 @@ export class AsistenteIaService {
   public readonly errorVoz$ = new Subject<string>();
 
   private recognition: SpeechRecognitionLike | null = null;
+  private textoAcumuladoSesion = '';
+
+  public get ultimoTextoVoz(): string {
+    return this.textoAcumuladoSesion;
+  }
 
   /**
    * Ejecuta una instrucción o comando atómico de modelado por texto o voz
@@ -103,7 +108,7 @@ export class AsistenteIaService {
   }
 
   /**
-   * Inicia la captura de voz por micrófono usando Web Speech API
+   * Inicia la captura de voz continua por micrófono usando Web Speech API
    */
   public iniciarReconocimientoVoz(): void {
     if (!this.soportaReconocimientoVoz()) {
@@ -119,31 +124,38 @@ export class AsistenteIaService {
       const RecognitionClass = win.SpeechRecognition || win.webkitSpeechRecognition;
       if (!RecognitionClass) return;
 
-      this.detenerReconocimientoVoz();
+      this.detenerReconocimientoVoz(false);
       const rec = new RecognitionClass();
-      rec.continuous = false;
+      rec.continuous = true;
       rec.interimResults = true;
       rec.lang = 'es-ES';
+      this.textoAcumuladoSesion = '';
 
       rec.onresult = (event: SpeechRecognitionEventLike) => {
-        let textoParcial = '';
+        if (!this.escuchandoVoz$.getValue()) {
+          return;
+        }
         let textoFinal = '';
+        let textoParcial = '';
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
           if (res.isFinal) {
-            textoFinal += res[0].transcript;
+            textoFinal += (textoFinal ? ' ' : '') + res[0].transcript.trim();
           } else {
-            textoParcial += res[0].transcript;
+            textoParcial += (textoParcial ? ' ' : '') + res[0].transcript.trim();
           }
         }
-        if (textoFinal.trim()) {
-          this.textoVozFinal$.next(textoFinal.trim());
-        } else if (textoParcial.trim()) {
-          this.textoVozProvisional$.next(textoParcial.trim());
+        const textoCompleto = (textoFinal + (textoParcial ? ' ' + textoParcial : '')).trim();
+        if (textoCompleto && this.escuchandoVoz$.getValue()) {
+          this.textoAcumuladoSesion = textoCompleto;
+          this.textoVozProvisional$.next(textoCompleto);
         }
       };
 
       rec.onerror = (ev: { error: string }) => {
+        if (ev.error === 'no-speech' || ev.error === 'aborted') {
+          return;
+        }
         this.escuchandoVoz$.next(false);
         const err = ev.error === 'not-allowed'
           ? 'Permiso de micrófono denegado. Puedes escribir la instrucción directamente.'
@@ -165,18 +177,27 @@ export class AsistenteIaService {
   }
 
   /**
-   * Detiene la captura de voz
+   * Detiene la captura de voz y retorna el texto acumulado
    */
-  public detenerReconocimientoVoz(): void {
+  public detenerReconocimientoVoz(emitirFinal = false): string {
+    const texto = this.textoAcumuladoSesion.trim();
+    this.escuchandoVoz$.next(false);
+    this.textoAcumuladoSesion = '';
     if (this.recognition) {
       try {
+        this.recognition.onresult = null;
+        this.recognition.onerror = null;
+        this.recognition.onend = null;
         this.recognition.stop();
       } catch {
-        // Ignorar
+        // Ignorar errores al detener
       }
       this.recognition = null;
     }
-    this.escuchandoVoz$.next(false);
+    if (emitirFinal && texto) {
+      this.textoVozFinal$.next(texto);
+    }
+    return texto;
   }
 
   /**

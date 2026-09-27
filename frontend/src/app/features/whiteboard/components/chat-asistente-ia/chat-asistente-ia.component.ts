@@ -7,6 +7,7 @@ import {
   OnDestroy,
   ViewChild,
   ElementRef,
+  HostListener,
   inject
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -46,7 +47,9 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   public textoInstruccion = '';
   public cargandoInstruccion = false;
   public escuchandoMicrofono = false;
+  public espacioPresionado = false;
 
+  private timerDebounceEnvio: number | null = null;
   private readonly subs = new Subscription();
 
   public ngOnInit(): void {
@@ -54,9 +57,63 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
-    this.asistenteIaService.detenerReconocimientoVoz();
+    if (this.timerDebounceEnvio !== null) {
+      window.clearTimeout(this.timerDebounceEnvio);
+      this.timerDebounceEnvio = null;
+    }
+    this.asistenteIaService.detenerReconocimientoVoz(false);
     this.subs.unsubscribe();
   }
+
+  // ── Push-to-Talk con Barra Espaciadora ──
+
+  @HostListener('window:keydown', ['$event'])
+  public onKeyDownGlobal(evt: KeyboardEvent): void {
+    if (evt.code !== 'Space' && evt.key !== ' ') return;
+    if (evt.repeat) {
+      if (this.espacioPresionado) {
+        evt.preventDefault();
+      }
+      return;
+    }
+    if (this.esElementoEditable(evt.target)) {
+      return;
+    }
+
+    evt.preventDefault();
+    this.espacioPresionado = true;
+    if (!this.chatAbierto) {
+      this.chatAbierto = true;
+    }
+    this.iniciarMicrofono();
+  }
+
+  @HostListener('window:keyup', ['$event'])
+  public onKeyUpGlobal(evt: KeyboardEvent): void {
+    if (evt.code !== 'Space' && evt.key !== ' ') return;
+    if (!this.espacioPresionado) return;
+
+    evt.preventDefault();
+    this.espacioPresionado = false;
+    this.detenerMicrofonoYEnviar();
+  }
+
+  private esElementoEditable(target: EventTarget | null): boolean {
+    if (!target || !(target instanceof HTMLElement)) return false;
+    const tag = target.tagName.toLowerCase();
+    if (tag === 'input') return true;
+    if (target.isContentEditable) return true;
+    if (tag === 'textarea') {
+      if (target === this.chatInputRef?.nativeElement && !this.textoInstruccion.trim()) {
+        target.blur();
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // ── Control de Visibilidad ──
 
   public toggleChat(): void {
     this.chatAbierto = !this.chatAbierto;
@@ -77,22 +134,53 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ── Dictado y Reconocimiento de Voz ──
+
   public alternarMicrofono(): void {
     if (this.escuchandoMicrofono) {
-      this.detenerMicrofono();
+      this.detenerMicrofonoYEnviar();
     } else {
       this.iniciarMicrofono();
     }
   }
 
   public iniciarMicrofono(): void {
+    if (this.timerDebounceEnvio !== null) {
+      window.clearTimeout(this.timerDebounceEnvio);
+      this.timerDebounceEnvio = null;
+    }
+    this.textoInstruccion = '';
     this.asistenteIaService.iniciarReconocimientoVoz();
   }
 
   public detenerMicrofono(): void {
-    this.asistenteIaService.detenerReconocimientoVoz();
+    this.asistenteIaService.detenerReconocimientoVoz(false);
+    this.espacioPresionado = false;
+    if (this.timerDebounceEnvio !== null) {
+      window.clearTimeout(this.timerDebounceEnvio);
+      this.timerDebounceEnvio = null;
+    }
     setTimeout(() => this.chatInputRef?.nativeElement?.focus(), 100);
   }
+
+  public detenerMicrofonoYEnviar(): void {
+    const textoVoz = this.asistenteIaService.detenerReconocimientoVoz(false);
+    const textoAEnviar = (textoVoz || this.textoInstruccion || this.asistenteIaService.ultimoTextoVoz).trim();
+    this.textoInstruccion = '';
+    if (this.timerDebounceEnvio !== null) {
+      window.clearTimeout(this.timerDebounceEnvio);
+    }
+    this.timerDebounceEnvio = window.setTimeout(() => {
+      this.timerDebounceEnvio = null;
+      if (textoAEnviar) {
+        this.enviarInstruccion(textoAEnviar);
+      } else {
+        this.toastService.info('No se detectó audio al soltar la tecla Espacio.');
+      }
+    }, 120);
+  }
+
+  // ── Envío de Instrucciones ──
 
   public onEnterInput(event: Event): void {
     const keyEvent = event as KeyboardEvent;
@@ -102,8 +190,9 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
     }
   }
 
-  public enviarInstruccion(): void {
-    const texto = this.textoInstruccion.trim();
+  public enviarInstruccion(textoManual?: string): void {
+    const texto = (textoManual ?? this.textoInstruccion).trim();
+    this.textoInstruccion = '';
     if (!texto || this.cargandoInstruccion) return;
 
     if (this.escuchandoMicrofono) {
@@ -117,7 +206,6 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
       fecha: new Date()
     };
     this.mensajesChat.push(msgUsuario);
-    this.textoInstruccion = '';
     this.cargandoInstruccion = true;
     this.scrollChatAlFondo();
 
@@ -176,21 +264,16 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
 
     this.subs.add(
       this.asistenteIaService.textoVozProvisional$.subscribe(texto => {
-        this.textoInstruccion = texto;
-      })
-    );
-
-    this.subs.add(
-      this.asistenteIaService.textoVozFinal$.subscribe(texto => {
-        this.textoInstruccion = texto;
-        this.asistenteIaService.detenerReconocimientoVoz();
-        this.enviarInstruccion();
+        if (this.escuchandoMicrofono) {
+          this.textoInstruccion = texto;
+        }
       })
     );
 
     this.subs.add(
       this.asistenteIaService.errorVoz$.subscribe(err => {
         this.escuchandoMicrofono = false;
+        this.espacioPresionado = false;
         this.toastService.info(err);
         setTimeout(() => this.chatInputRef?.nativeElement?.focus(), 100);
       })
