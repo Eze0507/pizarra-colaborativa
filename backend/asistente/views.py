@@ -5,19 +5,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from .serializers import EnviarConsultaAgenteSeniorSerializer
-from .services import (
-    AsistenteServiceError,
-    AgenteSeniorService,
-    DiagramaImagenService,
-    InstruccionAsistenteService,
-)
+from .services import AsistenteServiceError
+from .services.diagrama_imagen_service import DiagramaImagenService
+from .services.instruccion_asistente_service import InstruccionAsistenteService
+from .services.agente_senior_service import AgenteSeniorService
 
 
 class GenerarDiagramaDesdeImagenView(APIView):
     """
     Endpoint para procesar imágenes de diagramas dibujados a mano
     mediante Google Gemini y transformarlos en estructura JSON de entidades y relaciones.
-    Toda la lógica reside en DiagramaImagenService (services.py).
+    Toda la lógica reside en DiagramaImagenService (services/diagrama_imagen_service.py).
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -37,7 +35,7 @@ class EjecutarInstruccionAsistenteView(APIView):
     """
     Endpoint para procesar comandos/instrucciones breves de modelado en lenguaje natural
     y devolver un delta de acciones sobre el diagrama.
-    Toda la lógica reside en InstruccionAsistenteService (services.py).
+    Toda la lógica reside en InstruccionAsistenteService (services/instruccion_asistente_service.py).
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser]
@@ -53,7 +51,7 @@ class EjecutarInstruccionAsistenteView(APIView):
 class AgenteSeniorConversacionView(APIView):
     """
     Vista delgada para el caso de uso «INTERACTUAR CON AGENTE SENIOR COLABORATIVO».
-    Delega toda la lógica de negocio a AgenteSeniorService en services.py:
+    Delega toda la lógica de negocio a AgenteSeniorService en services/agente_senior_service.py:
     - GET: Obtiene el historial de mensajes compartidos y el estado actual de la cola del proyecto.
     - POST: Valida, registra/encola (FIFO máx. 1 procesando + 2 en espera) y procesa una consulta
             contextualizada con el Agente Senior Colaborativo, sincronizando por WebSocket.
