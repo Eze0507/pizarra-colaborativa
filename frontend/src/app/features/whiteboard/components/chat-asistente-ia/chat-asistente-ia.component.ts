@@ -8,7 +8,8 @@ import {
   ViewChild,
   ElementRef,
   HostListener,
-  inject
+  inject,
+  ChangeDetectorRef
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -16,7 +17,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 
 import {
-  MensajeChatIA,
   ContextoDiagramaIA,
   DeltaInstruccionIARespuesta
 } from '../../interfaces/asistente-ia.interface';
@@ -33,18 +33,17 @@ import { ToastNotificationService } from '../../../../core/services/toast-notifi
 export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   private readonly asistenteIaService = inject(AsistenteIaService);
   private readonly toastService = inject(ToastNotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   @Input() public contextoDiagrama: ContextoDiagramaIA = { entidades: [], relaciones: [] };
   @Input() public modoOscuro = false;
 
   @Output() public readonly ejecutarDeltaIA = new EventEmitter<DeltaInstruccionIARespuesta>();
 
-  @ViewChild('chatInput') public chatInputRef?: ElementRef<HTMLTextAreaElement>;
-  @ViewChild('chatMessagesContainer') public chatMessagesContainerRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('instruccionInput') public instruccionInputRef?: ElementRef<HTMLInputElement>;
 
-  public chatAbierto = false;
-  public mensajesChat: MensajeChatIA[] = [];
   public textoInstruccion = '';
+  public instruccionEnProceso = '';
   public cargandoInstruccion = false;
   public escuchandoMicrofono = false;
   public espacioPresionado = false;
@@ -65,11 +64,12 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
     this.subs.unsubscribe();
   }
 
-  // ── Push-to-Talk con Barra Espaciadora ──
+  // ── Push-to-Talk con Barra Espaciadora (cuando no se está escribiendo en un input) ──
 
   @HostListener('window:keydown', ['$event'])
   public onKeyDownGlobal(evt: KeyboardEvent): void {
     if (evt.code !== 'Space' && evt.key !== ' ') return;
+    if (this.cargandoInstruccion) return;
     if (evt.repeat) {
       if (this.espacioPresionado) {
         evt.preventDefault();
@@ -82,9 +82,6 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
 
     evt.preventDefault();
     this.espacioPresionado = true;
-    if (!this.chatAbierto) {
-      this.chatAbierto = true;
-    }
     this.iniciarMicrofono();
   }
 
@@ -101,42 +98,15 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   private esElementoEditable(target: EventTarget | null): boolean {
     if (!target || !(target instanceof HTMLElement)) return false;
     const tag = target.tagName.toLowerCase();
-    if (tag === 'input') return true;
+    if (tag === 'input' || tag === 'textarea') return true;
     if (target.isContentEditable) return true;
-    if (tag === 'textarea') {
-      if (target === this.chatInputRef?.nativeElement && !this.textoInstruccion.trim()) {
-        target.blur();
-        return false;
-      }
-      return true;
-    }
     return false;
-  }
-
-  // ── Control de Visibilidad ──
-
-  public toggleChat(): void {
-    this.chatAbierto = !this.chatAbierto;
-    if (this.chatAbierto) {
-      setTimeout(() => {
-        this.scrollChatAlFondo();
-        this.chatInputRef?.nativeElement?.focus();
-      }, 150);
-    } else if (this.escuchandoMicrofono) {
-      this.detenerMicrofono();
-    }
-  }
-
-  public cerrarChat(): void {
-    this.chatAbierto = false;
-    if (this.escuchandoMicrofono) {
-      this.detenerMicrofono();
-    }
   }
 
   // ── Dictado y Reconocimiento de Voz ──
 
   public alternarMicrofono(): void {
+    if (this.cargandoInstruccion) return;
     if (this.escuchandoMicrofono) {
       this.detenerMicrofonoYEnviar();
     } else {
@@ -151,6 +121,7 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
     }
     this.textoInstruccion = '';
     this.asistenteIaService.iniciarReconocimientoVoz();
+    this.cdr.markForCheck();
   }
 
   public detenerMicrofono(): void {
@@ -160,7 +131,7 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
       window.clearTimeout(this.timerDebounceEnvio);
       this.timerDebounceEnvio = null;
     }
-    setTimeout(() => this.chatInputRef?.nativeElement?.focus(), 100);
+    this.cdr.markForCheck();
   }
 
   public detenerMicrofonoYEnviar(): void {
@@ -175,17 +146,19 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
       if (textoAEnviar) {
         this.enviarInstruccion(textoAEnviar);
       } else {
-        this.toastService.info('No se detectó audio al soltar la tecla Espacio.');
+        this.toastService.info('No se detectó audio.');
       }
+      this.cdr.markForCheck();
     }, 120);
   }
 
   // ── Envío de Instrucciones ──
 
   public onEnterInput(event: Event): void {
-    const keyEvent = event as KeyboardEvent;
-    if (!keyEvent.shiftKey) {
-      event.preventDefault();
+    event.preventDefault();
+    if (this.escuchandoMicrofono) {
+      this.detenerMicrofonoYEnviar();
+    } else {
       this.enviarInstruccion();
     }
   }
@@ -199,25 +172,11 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
       this.detenerMicrofono();
     }
 
-    const msgUsuario: MensajeChatIA = {
-      id: `usr_${Date.now()}`,
-      remitente: 'usuario',
-      texto,
-      fecha: new Date()
-    };
-    this.mensajesChat.push(msgUsuario);
+    this.instruccionInputRef?.nativeElement?.blur();
+    this.instruccionEnProceso = texto;
     this.cargandoInstruccion = true;
-    this.scrollChatAlFondo();
+    this.cdr.markForCheck();
 
-    this.procesarLlamadaBackend(texto);
-  }
-
-  public limpiarHistorial(): void {
-    this.mensajesChat = [];
-    this.toastService.info('Historial del chat reiniciado');
-  }
-
-  private procesarLlamadaBackend(texto: string): void {
     this.asistenteIaService
       .ejecutarInstruccion(texto, this.contextoDiagrama)
       .subscribe({
@@ -228,37 +187,24 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
 
   private manejarExitoInstruccion(delta: DeltaInstruccionIARespuesta): void {
     this.cargandoInstruccion = false;
-    const msgAsistente: MensajeChatIA = {
-      id: `ia_${Date.now()}`,
-      remitente: 'asistente',
-      texto: delta.mensaje || 'Instrucción ejecutada con éxito.',
-      fecha: new Date()
-    };
-    this.mensajesChat.push(msgAsistente);
+    this.instruccionEnProceso = '';
     this.ejecutarDeltaIA.emit(delta);
-    this.scrollChatAlFondo();
-    setTimeout(() => this.chatInputRef?.nativeElement?.focus(), 100);
+    this.cdr.markForCheck();
   }
 
   private manejarErrorInstruccion(err: HttpErrorResponse): void {
     this.cargandoInstruccion = false;
-    const errorMsg = err.error?.error || 'Error al procesar la instrucción con la IA.';
-    const msgError: MensajeChatIA = {
-      id: `ia_err_${Date.now()}`,
-      remitente: 'asistente',
-      texto: `⚠️ ${errorMsg}`,
-      fecha: new Date()
-    };
-    this.mensajesChat.push(msgError);
+    this.instruccionEnProceso = '';
+    const errorMsg = err.error?.detail || err.error?.error || 'Error al procesar la instrucción con la IA.';
     this.toastService.error(errorMsg);
-    this.scrollChatAlFondo();
-    setTimeout(() => this.chatInputRef?.nativeElement?.focus(), 100);
+    this.cdr.markForCheck();
   }
 
   private suscribirEventosVoz(): void {
     this.subs.add(
       this.asistenteIaService.escuchandoVoz$.subscribe(esc => {
         this.escuchandoMicrofono = esc;
+        this.cdr.markForCheck();
       })
     );
 
@@ -266,6 +212,7 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
       this.asistenteIaService.textoVozProvisional$.subscribe(texto => {
         if (this.escuchandoMicrofono) {
           this.textoInstruccion = texto;
+          this.cdr.markForCheck();
         }
       })
     );
@@ -275,17 +222,8 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
         this.escuchandoMicrofono = false;
         this.espacioPresionado = false;
         this.toastService.info(err);
-        setTimeout(() => this.chatInputRef?.nativeElement?.focus(), 100);
+        this.cdr.markForCheck();
       })
     );
-  }
-
-  private scrollChatAlFondo(): void {
-    setTimeout(() => {
-      const el = this.chatMessagesContainerRef?.nativeElement;
-      if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
-    }, 50);
   }
 }
