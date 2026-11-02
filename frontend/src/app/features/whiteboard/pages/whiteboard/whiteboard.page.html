@@ -79,6 +79,14 @@
     >
     </app-controles-zoom>
 
+    <!-- Botón Flotante y Panel Colaborativo del Agente Senior -->
+    <app-chat-agente-senior
+      [proyectoId]="proyecto?.id || 0"
+      [contextoDiagrama]="obtenerContextoDiagramaParaIA()"
+      [modoOscuro]="modoOscuro"
+    >
+    </app-chat-agente-senior>
+
     <!-- Botón Flotante y Panel de Asistente IA (Chat y Voz) -->
     <app-chat-asistente-ia
       [contextoDiagrama]="obtenerContextoDiagramaParaIA()"

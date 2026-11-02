@@ -8,6 +8,14 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 
+def _sanitize_keys_to_str(obj):
+    if isinstance(obj, dict):
+        return {str(k): _sanitize_keys_to_str(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_keys_to_str(elem) for elem in obj]
+    return obj
+
+
 def get_proyecto_group_name(proyecto_id: int | str) -> str:
     """
     Retorna el identificador del grupo de canales en Redis para un proyecto específico.
@@ -28,11 +36,11 @@ def notificar_evento_proyecto_sync(proyecto_id: int | str, tipo_evento: str, pay
     grupo = get_proyecto_group_name(proyecto_id)
     async_to_sync(channel_layer.group_send)(
         grupo,
-        {
+        _sanitize_keys_to_str({
             "type": "pizarra.evento",
             "evento": tipo_evento,
             "data": payload
-        }
+        })
     )
 
 
@@ -48,9 +56,9 @@ async def notificar_evento_proyecto_async(proyecto_id: int | str, tipo_evento: s
     grupo = get_proyecto_group_name(proyecto_id)
     await channel_layer.group_send(
         grupo,
-        {
+        _sanitize_keys_to_str({
             "type": "pizarra.evento",
             "evento": tipo_evento,
             "data": payload
-        }
+        })
     )

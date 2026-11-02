@@ -38,6 +38,7 @@ import {
 } from '../../components/modal-propiedades-relacion/modal-propiedades-relacion.component';
 import { ModalColaboradoresComponent } from '../../components/modal-colaboradores/modal-colaboradores.component';
 import { ChatAsistenteIaComponent } from '../../components/chat-asistente-ia/chat-asistente-ia.component';
+import { ChatAgenteSeniorComponent } from '../../components/chat-agente-senior/chat-agente-senior.component';
 import { ToastContainerComponent } from '../../../../shared/components/toast-container/toast-container.component';
 import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
 import { AuthService } from '../../../auth/services/auth.service';
@@ -71,6 +72,7 @@ import {
     CommonModule,
     SidebarPizarraComponent,
     ChatAsistenteIaComponent,
+    ChatAgenteSeniorComponent,
     ControlesZoomComponent,
     MenuRelacionComponent,
     MenuCardinalidadComponent,

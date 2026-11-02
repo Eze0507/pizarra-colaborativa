@@ -1,0 +1,246 @@
+<!-- ================================================================= -->
+<!-- BOTÓN FLOTANTE Y PANEL COLABORATIVO DEL AGENTE SENIOR             -->
+<!-- ================================================================= -->
+<div class="chat-senior-wrapper" [class.modo-oscuro]="modoOscuro">
+
+  <!-- ── 1. VENTANA FLOTANTE DEL CHAT COLABORATIVO ── -->
+  <div *ngIf="chatAbierto" class="chat-senior-panel" role="dialog" aria-label="Chat del Agente Senior Colaborativo">
+
+    <!-- Cabecera del Panel -->
+    <div class="chat-senior-header">
+      <div class="header-info">
+        <span
+          class="senior-dot"
+          [class.dot-ocupado]="estadoCola.procesando"
+          [class.dot-lleno]="estadoCola.cola_llena"
+        ></span>
+        <div class="header-titulos">
+          <span class="header-title">Agente Senior Colaborativo</span>
+          <span class="header-status">
+            <ng-container *ngIf="estadoCola.procesando; else libreTpl">
+              Procesando consulta{{ estadoCola.usuario_procesando ? ' de @' + estadoCola.usuario_procesando : '' }}...
+            </ng-container>
+            <ng-template #libreTpl>Disponible · Compartido con el equipo</ng-template>
+          </span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Indicador de Cola -->
+        <span
+          class="chip-cola"
+          [class.chip-cola-activa]="estadoCola.en_cola_count > 0"
+          [class.chip-cola-llena]="estadoCola.cola_llena"
+          title="Capacidad máxima: 1 consulta en procesamiento y 2 en espera"
+        >
+          Cola {{ estadoCola.en_cola_count }}/{{ estadoCola.max_en_cola }}
+        </span>
+
+        <!-- Botón Recargar Historial -->
+        <button
+          type="button"
+          class="btn-header-accion"
+          (click)="recargarHistorial()"
+          [disabled]="cargandoHistorial"
+          title="Sincronizar historial"
+          aria-label="Sincronizar historial"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+
+        <!-- Botón Cerrar -->
+        <button
+          type="button"
+          class="btn-header-accion btn-cerrar"
+          (click)="cerrarChat()"
+          title="Cerrar panel de Agente Senior"
+          aria-label="Cerrar panel"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Contenedor de Mensajes -->
+    <div #seniorMessagesContainer class="chat-senior-mensajes">
+
+      <!-- Estado Cargando Historial -->
+      <div *ngIf="cargandoHistorial && mensajes.length === 0" class="chat-cargando-inicial">
+        <div class="spinner-senior"></div>
+        <span>Cargando historial compartido del proyecto...</span>
+      </div>
+
+      <!-- Estado Vacío -->
+      <div *ngIf="!cargandoHistorial && mensajes.length === 0" class="chat-vacio">
+        <div class="vacio-icono">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <path d="M8 9h8"></path>
+            <path d="M8 13h5"></path>
+          </svg>
+        </div>
+        <p class="vacio-titulo">Asesoría de Diseño Conceptual UML</p>
+        <p class="vacio-texto">
+          Consulta dudas de diseño, normalización o buenas prácticas. Todas las preguntas y respuestas se comparten en tiempo real con los colaboradores del proyecto.
+        </p>
+        <ul class="vacio-lista">
+          <li>"¿Qué mejoras sugieres para nuestro diagrama actual?"</li>
+          <li>"¿Falta alguna clave foránea o clase de asociación?"</li>
+          <li>"¿Cómo deberíamos modelar la relación entre Cliente y Factura?"</li>
+        </ul>
+      </div>
+
+      <!-- Listado de Mensajes (USER y AGENT) -->
+      <div
+        *ngFor="let msg of mensajes; trackBy: trackByMensajeId"
+        class="chat-burbuja"
+        [class.burbuja-propia]="esMiMensaje(msg)"
+        [class.burbuja-colaborador]="msg.rol === 'USER' && !esMiMensaje(msg)"
+        [class.burbuja-agente]="msg.rol === 'AGENT'"
+        [class.burbuja-en-cola]="msg.estado === 'en_cola'"
+        [class.burbuja-procesando]="msg.estado === 'procesando'"
+      >
+        <div class="burbuja-meta">
+          <span class="burbuja-autor">
+            <span *ngIf="msg.rol === 'AGENT'" class="badge-ia">IA SENIOR</span>
+            {{ obtenerNombreAutor(msg) }}
+          </span>
+          <span class="burbuja-hora">{{ msg.fecha_envio | date:'shortTime' }}</span>
+        </div>
+
+        <div
+          *ngIf="msg.rol === 'AGENT'; else textoUsuarioTpl"
+          class="burbuja-cuerpo burbuja-markdown"
+          [innerHTML]="obtenerContenidoHtml(msg)"
+        ></div>
+        <ng-template #textoUsuarioTpl>
+          <div class="burbuja-cuerpo">{{ msg.contenido }}</div>
+        </ng-template>
+
+        <!-- Estado de la Consulta (Procesando / En cola) -->
+        <div *ngIf="msg.rol === 'USER' && msg.estado !== 'respondido'" class="burbuja-estado-footer">
+          <ng-container *ngIf="msg.estado === 'procesando'">
+            <span class="spinner-mini"></span>
+            <span class="estado-texto estado-procesando">Procesando con el Agente Senior...</span>
+          </ng-container>
+
+          <ng-container *ngIf="msg.estado === 'en_cola'">
+            <svg class="icono-reloj" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span class="estado-texto estado-cola">
+              En cola · Posición {{ msg.posicion_cola || 1 }}/{{ estadoCola.max_en_cola }}
+            </span>
+          </ng-container>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Barra de Entrada Inferior -->
+    <div class="chat-senior-input-bar">
+
+      <!-- Banner FE-04: Cola de espera llena -->
+      <div *ngIf="estadoCola.cola_llena" class="alerta-cola-llena">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>
+          Cola de espera llena ({{ estadoCola.en_cola_count }}/{{ estadoCola.max_en_cola }} en espera). Aguarda a que se libere un espacio.
+        </span>
+      </div>
+
+      <!-- Mensaje de error de validación (FE-03) -->
+      <div *ngIf="errorValidacionLocal && !estadoCola.cola_llena" class="error-validacion-input">
+        {{ errorValidacionLocal }}
+      </div>
+
+      <div class="input-contenedor">
+        <textarea
+          #seniorInput
+          class="input-texto-senior"
+          [(ngModel)]="textoConsulta"
+          (ngModelChange)="onInputCambio()"
+          [placeholder]="estadoCola.cola_llena ? 'Cola llena — esperando turno libre...' : 'Escribe una consulta sobre el diagrama para el Agente Senior...'"
+          rows="2"
+          [disabled]="estadoCola.cola_llena || enviandoConsulta"
+          (keydown.enter)="onEnterInput($event)"
+        ></textarea>
+
+        <button
+          type="button"
+          class="btn-enviar-senior"
+          (click)="enviarConsulta()"
+          [disabled]="!textoConsulta.trim() || textoConsulta.length > maxCaracteres || estadoCola.cola_llena || enviandoConsulta"
+          title="Enviar consulta al Agente Senior"
+          aria-label="Enviar consulta"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+
+      <div class="input-footer-meta">
+        <span class="meta-hint">
+          <ng-container *ngIf="estadoCola.procesando && !estadoCola.cola_llena">
+            Agente ocupado · Tu consulta ingresará en cola ({{ estadoCola.en_cola_count + 1 }}/{{ estadoCola.max_en_cola }})
+          </ng-container>
+          <ng-container *ngIf="!estadoCola.procesando">
+            Enter para enviar · Shift+Enter para salto de línea
+          </ng-container>
+        </span>
+        <span
+          class="contador-caracteres"
+          [class.contador-excedido]="textoConsulta.length > maxCaracteres"
+        >
+          {{ textoConsulta.length }}/{{ maxCaracteres }}
+        </span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── 2. BOTÓN FLOTANTE PRINCIPAL (AGENTE SENIOR) ── -->
+  <button
+    type="button"
+    class="btn-fab-senior"
+    [class.fab-abierto]="chatAbierto"
+    [class.fab-procesando]="estadoCola.procesando"
+    (click)="toggleChat()"
+    [title]="chatAbierto ? 'Minimizar Agente Senior' : 'Abrir chat colaborativo con el Agente Senior'"
+    aria-label="Agente Senior"
+  >
+    <div *ngIf="!chatAbierto" class="fab-icono-content">
+      <svg class="icono-senior" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        <path d="M8 9h8"></path>
+        <path d="M8 13h5"></path>
+      </svg>
+      <span class="fab-etiqueta">Agente Senior</span>
+      <span *ngIf="estadoCola.procesando" class="fab-spinner-dot" title="Agente Senior procesando consulta"></span>
+      <span *ngIf="mensajesSinLeer > 0" class="fab-badge-unread">{{ mensajesSinLeer }}</span>
+    </div>
+
+    <div *ngIf="chatAbierto" class="fab-icono-content">
+      <svg class="icono-cerrar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+      <span class="fab-etiqueta">Agente Senior</span>
+    </div>
+  </button>
+
+</div>
+

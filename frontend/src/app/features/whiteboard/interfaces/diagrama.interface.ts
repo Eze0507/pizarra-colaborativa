@@ -94,7 +94,11 @@ export type AccionWS =
   | 'relacion_eliminada'
   | 'renombrar_proyecto'
   | 'proyecto_renombrado'
-  | 'snapshot_guardado';
+  | 'snapshot_guardado'
+  | 'agente_senior_mensaje_creado'
+  | 'agente_senior_estado_actualizado'
+  | 'agente_senior_respuesta'
+  | 'agente_senior_error';
 
 export interface MensajeWS {
   accion?: AccionWS;
