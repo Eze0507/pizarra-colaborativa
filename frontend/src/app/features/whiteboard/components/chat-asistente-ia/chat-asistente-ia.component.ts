@@ -36,7 +36,7 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
 
   @Input() public contextoDiagrama: ContextoDiagramaIA = { entidades: [], relaciones: [] };
-  @Input() public modoOscuro = false;
+  @Input() public modoOscuro = true;
 
   @Output() public readonly ejecutarDeltaIA = new EventEmitter<DeltaInstruccionIARespuesta>();
 

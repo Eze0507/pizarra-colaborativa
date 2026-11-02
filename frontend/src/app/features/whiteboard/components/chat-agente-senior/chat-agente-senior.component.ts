@@ -39,7 +39,7 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
 
   @Input() public proyectoId = 0;
   @Input() public contextoDiagrama: ContextoDiagramaIA = { entidades: [], relaciones: [] };
-  @Input() public modoOscuro = false;
+  @Input() public modoOscuro = true;
 
   @ViewChild('seniorInput') public seniorInputRef?: ElementRef<HTMLTextAreaElement>;
   @ViewChild('seniorMessagesContainer') public seniorMessagesContainerRef?: ElementRef<HTMLDivElement>;

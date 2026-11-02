@@ -38,7 +38,7 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
   @Input() public proyecto: ProyectoDiagrama | null = null;
   @Input() public estadoConexion: EstadoConexion = 'desconectado';
   @Input() public estadoGuardado: 'guardado' | 'guardando' | 'error' = 'guardado';
-  @Input() public modoOscuro = false;
+  @Input() public modoOscuro = true;
   @Input() public usuariosConectados: UsuarioConectado[] = [];
 
   // Acciones de elementos y lienzo

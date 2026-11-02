@@ -32,7 +32,7 @@ export class ModalColaboradoresComponent implements OnInit, OnDestroy, OnChanges
   @Input() public visible = false;
   @Input() public proyectoId = 0;
   @Input() public esPropietario = false;
-  @Input() public modoOscuro = false;
+  @Input() public modoOscuro = true;
 
   @Output() public readonly cerrar = new EventEmitter<void>();
 

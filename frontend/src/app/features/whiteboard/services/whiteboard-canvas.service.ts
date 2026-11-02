@@ -61,7 +61,7 @@ export class WhiteboardCanvasService {
   private lienzoContainer: HTMLElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  public modoOscuro = false;
+  public modoOscuro = true;
 
   // ── Eventos hacia la página (Observables públicos) ──
   public readonly solicitudRelacion$ = new Subject<EventoRelacionSolicitud>();

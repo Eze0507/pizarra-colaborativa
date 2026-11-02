@@ -121,7 +121,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public usuariosConectados: UsuarioConectado[] = [];
   public isLoading = true;
   public errorMessage: string | null = null;
-  public modoOscuro = false;
+  public modoOscuro = true;
   public zoomNivel = 100;
 
   // ── Estado Modales de Propiedades y Colaboradores ──
