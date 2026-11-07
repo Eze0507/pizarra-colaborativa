@@ -57,8 +57,23 @@
         <span class="form-hint">Se mostrará en el centro de la línea sobre el diagrama.</span>
       </div>
 
+      <div class="cardinalidades-grid">
+        <div class="form-group">
+          <label class="form-label">Tipo UML</label>
+          <select class="form-select" [(ngModel)]="tipo">
+            <option value="asociacion">Asociación</option><option value="agregacion">Agregación</option>
+            <option value="composicion">Composición</option><option value="herencia">Herencia</option>
+            <option value="implementacion">Implementación</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Rol origen</label><input class="form-input input-mono" [(ngModel)]="rolOrigen" /></div>
+        <div class="form-group"><label class="form-label">Rol destino</label><input class="form-input input-mono" [(ngModel)]="rolDestino" /></div>
+        <label><input type="checkbox" [(ngModel)]="navegableOrigen" /> Navegable hacia origen</label>
+        <label><input type="checkbox" [(ngModel)]="navegableDestino" /> Navegable hacia destino</label>
+      </div>
+
       <!-- Cardinalidades (Origen y Destino) -->
-      <div *ngIf="relacion?.tipo !== 'herencia'" class="cardinalidades-grid">
+      <div *ngIf="tipo !== 'herencia' && tipo !== 'implementacion'" class="cardinalidades-grid">
         <!-- Columna Origen -->
         <div class="cardinalidad-columna">
           <div class="cardinalidad-col-header">
@@ -94,7 +109,7 @@
             <span class="cardinalidad-col-entidad">{{ nombreDestino }}</span>
           </div>
 
-          <div *ngIf="esComposicion" class="alerta-bloqueado">
+          <div *ngIf="tipo === 'composicion'" class="alerta-bloqueado">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -102,7 +117,7 @@
             <span>Fijada estrictamente en <strong>1</strong> (Composición UML).</span>
           </div>
 
-          <div *ngIf="!esComposicion" class="cardinalidad-control">
+          <div *ngIf="tipo !== 'composicion'" class="cardinalidad-control">
             <div class="presets-grupo">
               <button
                 *ngFor="let p of presetsCardinalidad"

@@ -45,6 +45,18 @@
         </div>
 
         <div class="form-group campo-estado">
+          <label class="form-label" for="tipo-clasificador">Clasificador UML</label>
+          <select id="tipo-clasificador" class="form-select" [(ngModel)]="tipoClasificador">
+            <option value="clase">Clase</option>
+            <option value="entidad_persistente">Entidad persistente</option>
+            <option value="interfaz">Interfaz</option>
+          </select>
+          <label *ngIf="tipoClasificador !== 'interfaz'" class="toggle-nulo-label">
+            <input type="checkbox" [(ngModel)]="abstracto" /> Abstracta
+          </label>
+        </div>
+
+        <div class="form-group campo-estado">
           <label class="form-label" for="entidad-estado">Estado</label>
           <div class="select-wrapper">
             <select
@@ -94,6 +106,7 @@
                 <th class="col-pk" title="Clave Primaria">PK</th>
                 <th class="col-nombre">Nombre de Columna</th>
                 <th class="col-tipo">Tipo de Dato</th>
+                <th>UML</th>
                 <th class="col-nulo" title="Permite valores nulos">¿Nulo?</th>
                 <th class="col-acciones"></th>
               </tr>
@@ -131,6 +144,17 @@
                   >
                     <option *ngFor="let t of tiposDisponibles" [value]="t">{{ t }}</option>
                   </select>
+                  <select class="form-select select-tipo input-mono" [ngModel]="attr.tipo_referencia_id ?? ''" (ngModelChange)="usarReferencia(attr, $event)">
+                    <option value="">Tipo simple</option>
+                    <option *ngFor="let c of clasificadores" [value]="c.id">{{ c.nombre }}</option>
+                  </select>
+                </td>
+
+                <td>
+                  <select class="form-select" [(ngModel)]="attr.visibilidad">
+                    <option *ngFor="let v of visibilidades" [value]="v">{{ v }}</option>
+                  </select>
+                  <label><input type="checkbox" [(ngModel)]="attr.es_estatico" /> static</label>
                 </td>
 
                 <!-- Nullable Toggle -->
@@ -164,6 +188,31 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div class="seccion-atributos">
+        <div class="atributos-header">
+          <div class="atributos-titulo-grupo"><h3 class="atributos-titulo">Operaciones UML</h3><span class="atributos-contador">{{ operaciones.length }}</span></div>
+          <button type="button" class="btn-agregar-atributo" (click)="agregarOperacion()">+ Agregar operación</button>
+        </div>
+        <div *ngFor="let op of operaciones; let oi = index" class="tabla-atributos-wrapper" style="padding: 10px; margin-bottom: 8px">
+          <div class="seccion-general">
+            <input class="form-input input-mono" [(ngModel)]="op.nombre" placeholder="nombreOperacion" />
+            <select class="form-select" [(ngModel)]="op.visibilidad"><option *ngFor="let v of visibilidades" [value]="v">{{ v }}</option></select>
+            <input class="form-input input-mono" [(ngModel)]="op.tipo_retorno" placeholder="void" />
+            <select class="form-select" [(ngModel)]="op.retorno_referencia_id"><option [ngValue]="null">Retorno simple</option><option *ngFor="let c of clasificadores" [ngValue]="c.id">{{ c.nombre }}</option></select>
+            <label><input type="checkbox" [(ngModel)]="op.es_estatico" /> static</label>
+            <label><input type="checkbox" [(ngModel)]="op.es_abstracto" /> abstract</label>
+            <button type="button" class="btn-eliminar-fila" (click)="eliminarOperacion(oi)">Eliminar</button>
+          </div>
+          <div *ngFor="let p of op.parametros; let pi = index" class="seccion-general">
+            <input class="form-input input-mono" [(ngModel)]="p.nombre" placeholder="parámetro" />
+            <input class="form-input input-mono" [(ngModel)]="p.tipo" placeholder="string" />
+            <select class="form-select" [ngModel]="p.tipo_referencia_id ?? ''" (ngModelChange)="usarReferencia(p, $event)"><option value="">Tipo simple</option><option *ngFor="let c of clasificadores" [value]="c.id">{{ c.nombre }}</option></select>
+            <button type="button" class="btn-eliminar-fila" (click)="eliminarParametro(op, pi)">×</button>
+          </div>
+          <button type="button" class="btn-link-agregar" (click)="agregarParametro(op)">+ Parámetro</button>
         </div>
       </div>
     </div>

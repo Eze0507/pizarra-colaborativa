@@ -4,6 +4,7 @@ import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { DiagramaCargaInicial, ProyectoDiagrama, RelacionDiagrama } from '../interfaces/diagrama.interface';
 import { UsuarioBusqueda, ColaboradorProyecto, RespuestaAccionColaborador } from '../interfaces/colaborador.interface';
+import { PerfilValidacion, ResultadoValidacion } from '../interfaces/validation.interface';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +19,13 @@ export class WhiteboardApiService {
       `${this.baseUrl}/proyectos/${proyectoId}/diagrama/`
     ).pipe(
       map(datos => this.reconciliarDatosDiagrama(datos))
+    );
+  }
+
+  public validarProyecto(proyectoId: number, perfil: PerfilValidacion): Observable<ResultadoValidacion> {
+    return this.http.get<ResultadoValidacion>(
+      `${this.baseUrl}/proyectos/${proyectoId}/validacion/`,
+      { params: { perfil } }
     );
   }
 
@@ -62,14 +70,9 @@ export class WhiteboardApiService {
       });
     });
 
-    if (snapshotRelaciones && Array.isArray(snapshotRelaciones)) {
-      snapshotRelaciones.forEach(r => {
-        if (r && r.id && !idsAgregados.has(r.id)) {
-          idsAgregados.add(r.id);
-          relacionesFinales.push(r);
-        }
-      });
-    }
+    // La semántica ORM tiene precedencia. Una relación que solo vive en un
+    // snapshot antiguo no se reincorpora silenciosamente (F06 resolverá la
+    // reconciliación general y sus conflictos).
 
     // Salvaguarda: si existen entidades intermedias sin clase_asociacion_id vinculada, resolver
     const intermediasHuerfanas = (datos.entidades || []).filter(
@@ -91,14 +94,26 @@ export class WhiteboardApiService {
 
     return {
       ...datos,
+      entidades: (datos.entidades || []).map(e => ({
+        ...e,
+        tipo_clasificador: e.tipo_clasificador || 'clase',
+        abstracto: !!e.abstracto,
+        atributos: (e.atributos || []).map(a => ({
+          ...a, visibilidad: a.visibilidad || 'private', es_estatico: !!a.es_estatico,
+          valor_predeterminado: a.valor_predeterminado || '', tipo_referencia_id: a.tipo_referencia_id ?? null
+        })),
+        operaciones: (e.operaciones || []).map(o => ({
+          ...o, parametros: (o.parametros || []).map(p => ({...p, tipo_referencia_id: p.tipo_referencia_id ?? null}))
+        }))
+      })),
       relaciones: relacionesFinales
     };
   }
 
-  public renombrarProyecto(proyectoId: number, nombre: string): Observable<ProyectoDiagrama> {
+  public renombrarProyecto(proyectoId: number, nombre: string, expectedRevision: number): Observable<ProyectoDiagrama> {
     return this.http.patch<ProyectoDiagrama>(
       `${this.baseUrl}/proyectos/${proyectoId}/`,
-      { nombre }
+      { nombre, expected_revision: expectedRevision }
     );
   }
 

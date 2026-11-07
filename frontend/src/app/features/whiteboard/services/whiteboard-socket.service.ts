@@ -4,6 +4,14 @@ import { BehaviorSubject, Subject, Subscription, timer } from 'rxjs';
 import { filter, switchMap, debounceTime } from 'rxjs/operators';
 import { TokenStorageService } from '../../../core/services/token-storage.service';
 import { MensajeWS, EstadoConexion, AccionWS, EntidadDiagrama, RelacionDiagrama, UsuarioConectado } from '../interfaces/diagrama.interface';
+import { confirmacionCorresponde, esConflictoRevision, requestCorresponde } from '../utils/revision.utils';
+
+interface SnapshotPendiente {
+  datos: Record<string, unknown>;
+  expectedRevision: number;
+}
+
+const SNAPSHOT_CONFIRMATION_TIMEOUT_MS = 15_000;
 
 @Injectable({
   providedIn: 'root'
@@ -27,12 +35,28 @@ export class WhiteboardSocketService {
   private readonly _estadoGuardado$ = new BehaviorSubject<'guardado' | 'guardando' | 'error'>('guardado');
   public readonly estadoGuardado$ = this._estadoGuardado$.asObservable();
 
+  private readonly _revision$ = new BehaviorSubject<number>(0);
+  public readonly revision$ = this._revision$.asObservable();
+  private readonly _conflicto$ = new BehaviorSubject<MensajeWS | null>(null);
+  public readonly conflicto$ = this._conflicto$.asObservable();
+  private guardadoPendiente = false;
+  private snapshotEnDebounce: SnapshotPendiente | null = null;
+  private snapshotEnCola: SnapshotPendiente | null = null;
+  private snapshotPendiente: SnapshotPendiente | null = null;
+  private requestPendiente: string | null = null;
+  private timeoutGuardadoSub: Subscription | null = null;
+  private recuperacionPendiente = false;
+  private proyectoActual: number | null = null;
+  private nombreEnCola: string | null = null;
+  private secuenciaRequest = 0;
+  private debouncePendiente = false;
+
   // Lista de colaboradores actualmente conectados
   private readonly _usuariosConectados$ = new BehaviorSubject<UsuarioConectado[]>([]);
   public readonly usuariosConectados$ = this._usuariosConectados$.asObservable();
 
   // Debounce para guardar_snapshot: 2 segundos de inactividad
-  private readonly _snapshotTrigger$ = new Subject<Record<string, unknown>>();
+  private readonly _snapshotTrigger$ = new Subject<SnapshotPendiente>();
   private snapshotSub: Subscription | null = null;
 
   public conectar(proyectoId: number): void {
@@ -46,6 +70,16 @@ export class WhiteboardSocketService {
     if (this.socket$) {
       this.desconectar();
     }
+    this.proyectoActual = proyectoId;
+    this.guardadoPendiente = false;
+    this.snapshotEnDebounce = null;
+    this.snapshotPendiente = null;
+    this.snapshotEnCola = null;
+    this.requestPendiente = null;
+    this.nombreEnCola = null;
+    this.debouncePendiente = false;
+    this.recuperacionPendiente = false;
+    this._conflicto$.next(null);
 
     const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
     const wsUrl = `ws://${host}:8000/ws/pizarra/${proyectoId}/?token=${token}`;
@@ -62,7 +96,10 @@ export class WhiteboardSocketService {
         },
         closeObserver: {
           next: () => {
-            this.ngZone.run(() => this._estado$.next('desconectado'));
+            this.ngZone.run(() => {
+              this._estado$.next('desconectado');
+              this.marcarGuardadoIncierto();
+            });
           }
         }
       });
@@ -92,13 +129,25 @@ export class WhiteboardSocketService {
             email: mensaje.email ?? (dataObj?.['email'] as string | undefined),
             usuarios: mensaje.usuarios ?? (dataObj?.['usuarios'] as UsuarioConectado[] | undefined),
             id_map: mensaje.id_map ?? (dataObj?.['id_map'] as Record<string, number> | undefined),
+            attr_id_map: mensaje.attr_id_map ?? (dataObj?.['attr_id_map'] as Record<string, number> | undefined),
+            operation_id_map: mensaje.operation_id_map ?? (dataObj?.['operation_id_map'] as Record<string, number> | undefined),
+            parameter_id_map: mensaje.parameter_id_map ?? (dataObj?.['parameter_id_map'] as Record<string, number> | undefined),
             rel_id_map: mensaje.rel_id_map ?? (dataObj?.['rel_id_map'] as Record<string, number> | undefined),
-            exito: mensaje.exito ?? (dataObj?.['exito'] as boolean | undefined)
+            exito: mensaje.exito ?? (dataObj?.['exito'] as boolean | undefined),
+            revision: mensaje.revision ?? (dataObj?.['revision'] as number | undefined),
+            current_revision: mensaje.current_revision ?? (dataObj?.['current_revision'] as number | undefined),
+            request_id: mensaje.request_id ?? (dataObj?.['request_id'] as string | undefined),
+            codigo: mensaje.codigo ?? (dataObj?.['codigo'] as string | undefined),
+            mensaje: mensaje.mensaje ?? (dataObj?.['mensaje'] as string | undefined)
           };
 
+          let confirmacionAceptada = false;
           if (accion === 'snapshot_guardado') {
-            const exito = normalizado.exito !== false;
-            this.ngZone.run(() => this._estadoGuardado$.next(exito ? 'guardado' : 'error'));
+            confirmacionAceptada = this.procesarConfirmacionSnapshot(normalizado);
+          } else if (accion === 'proyecto_renombrado' && normalizado.revision !== undefined) {
+            this._revision$.next(normalizado.revision);
+          } else if (accion === 'comando_rechazado' && normalizado.codigo) {
+            this.procesarRechazoSnapshot(normalizado);
           } else if (accion === 'usuarios_conectados') {
             const lista = normalizado.usuarios || (dataObj?.['usuarios'] as UsuarioConectado[]) || [];
             this.ngZone.run(() => this._usuariosConectados$.next(lista));
@@ -123,25 +172,37 @@ export class WhiteboardSocketService {
           }
 
           this.ngZone.run(() => this._mensajes$.next(normalizado));
+          if (confirmacionAceptada && !this._conflicto$.getValue() && this.snapshotEnCola) {
+            const siguiente = this.snapshotEnCola;
+            this.snapshotEnCola = null;
+            this.enviarSnapshot({
+              datos: siguiente.datos,
+              expectedRevision: this._revision$.getValue()
+            });
+          } else if (
+            confirmacionAceptada && !this._conflicto$.getValue() &&
+            !this.hayCambiosLocalesPendientes() && this.nombreEnCola
+          ) {
+            const nombre = this.nombreEnCola;
+            this.nombreEnCola = null;
+            this.enviarRenombrarProyecto(nombre);
+          }
         },
         error: () => {
           this.ngZone.run(() => {
             this._estado$.next('error');
-            this._estadoGuardado$.next('error');
+            this.marcarGuardadoIncierto();
           });
         }
       });
     });
 
     // Configurar el debounce de 2 segundos para guardar_snapshot
-    this.snapshotSub = this._snapshotTrigger$.pipe(
-      debounceTime(2000)
-    ).subscribe((datos) => {
-      this.enviarMensaje({ accion: 'guardar_snapshot', datos_diagrama: datos });
-    });
+    this.iniciarDebounceSnapshots();
   }
 
   public desconectar(): void {
+    this.cancelarTimeoutGuardado();
     this.snapshotSub?.unsubscribe();
     this.subscription?.unsubscribe();
     this.socket$?.complete();
@@ -151,7 +212,14 @@ export class WhiteboardSocketService {
   }
 
   public enviarRenombrarProyecto(nombre: string): void {
-    this.enviarMensaje({ accion: 'renombrar_proyecto', nombre });
+    if (this.guardadoPendiente || this.snapshotEnCola || this._estadoGuardado$.getValue() === 'guardando' || this._conflicto$.getValue()) {
+      this.nombreEnCola = nombre;
+      return;
+    }
+    this.enviarMensaje({
+      accion: 'renombrar_proyecto', nombre,
+      expected_revision: this._revision$.getValue(), request_id: this.nuevoRequestId()
+    });
   }
 
   public enviarMoverEntidad(entidadId: number, x: number, y: number): void {
@@ -200,13 +268,169 @@ export class WhiteboardSocketService {
   /** Programa el guardado del snapshot con debounce de 2s */
   public programarGuardarSnapshot(datos: Record<string, unknown>): void {
     this._estadoGuardado$.next('guardando');
-    this._snapshotTrigger$.next(datos);
+    this.debouncePendiente = true;
+    this.snapshotEnDebounce = { datos, expectedRevision: this._revision$.getValue() };
+    this._snapshotTrigger$.next(this.snapshotEnDebounce);
   }
 
   /** Fuerza el guardado inmediato del snapshot sin esperar el debounce */
   public forzarGuardarSnapshot(datos: Record<string, unknown>): void {
+    if (this._conflicto$.getValue()) {
+      this.snapshotEnCola = { datos, expectedRevision: this._revision$.getValue() };
+      this._estadoGuardado$.next('error');
+      return;
+    }
     this._estadoGuardado$.next('guardando');
-    this.enviarMensaje({ accion: 'guardar_snapshot', datos_diagrama: datos });
+    this.recuperacionPendiente = false;
+    this.debouncePendiente = false;
+    this.snapshotEnDebounce = null;
+    this.encolarOEnviarSnapshot({ datos, expectedRevision: this._revision$.getValue() });
+  }
+
+  public establecerRevision(revision: number): void {
+    this._revision$.next(revision);
+  }
+
+  public get revisionActual(): number { return this._revision$.getValue(); }
+
+  public descartarCambiosLocalesEnConflicto(): void {
+    this.snapshotEnCola = null;
+    this.snapshotEnDebounce = null;
+    this.snapshotPendiente = null;
+    this.guardadoPendiente = false;
+    this.requestPendiente = null;
+    this.debouncePendiente = false;
+    this.recuperacionPendiente = false;
+    this.cancelarTimeoutGuardado();
+    this._conflicto$.next(null);
+    this._estadoGuardado$.next('guardado');
+  }
+
+  public registrarConflictoRevision(currentRevision?: number, mensaje?: string): void {
+    this._estadoGuardado$.next('error');
+    this._conflicto$.next({
+      accion: 'comando_rechazado', exito: false, codigo: 'stale_revision',
+      current_revision: currentRevision,
+      mensaje: mensaje || 'El diagrama cambió desde tu última sincronización.'
+    });
+  }
+
+  private encolarOEnviarSnapshot(pendiente: SnapshotPendiente): void {
+    if (this._conflicto$.getValue() || this.recuperacionPendiente || this.guardadoPendiente) {
+      this.snapshotEnCola = pendiente;
+      return;
+    }
+    this.enviarSnapshot(pendiente);
+  }
+
+  private enviarSnapshot(pendiente: SnapshotPendiente): void {
+    const requestId = this.nuevoRequestId();
+    this.guardadoPendiente = true;
+    this.snapshotPendiente = pendiente;
+    this.requestPendiente = requestId;
+    this.iniciarTimeoutGuardado(requestId);
+    this.enviarMensaje({
+      accion: 'guardar_snapshot', datos_diagrama: pendiente.datos,
+      expected_revision: pendiente.expectedRevision, request_id: requestId
+    });
+  }
+
+  private nuevoRequestId(): string {
+    this.secuenciaRequest += 1;
+    const cryptoApi = globalThis.crypto;
+    if (typeof cryptoApi?.randomUUID === 'function') return `ws-${cryptoApi.randomUUID()}`;
+    return `ws-${Date.now()}-${Math.random().toString(36).slice(2)}-${this.secuenciaRequest}`;
+  }
+
+  private procesarConfirmacionSnapshot(mensaje: MensajeWS): boolean {
+    if (!this.guardadoPendiente || !this.snapshotPendiente) return false;
+    if (mensaje.proyecto_id !== this.proyectoActual) return false;
+    if (!confirmacionCorresponde(this.requestPendiente, mensaje)) return false;
+    const revision = mensaje.revision;
+    if (
+      typeof revision !== 'number' || !Number.isSafeInteger(revision) ||
+      revision !== this.snapshotPendiente.expectedRevision + 1
+    ) {
+      return false;
+    }
+
+    this.cancelarTimeoutGuardado();
+    this._revision$.next(revision);
+    this.rebasarPendientesTrasConfirmacionPropia(revision);
+    this.guardadoPendiente = false;
+    this.snapshotPendiente = null;
+    this.requestPendiente = null;
+    this.recuperacionPendiente = false;
+    this.ngZone.run(() => {
+      this._estadoGuardado$.next(this.hayCambiosLocalesPendientes() ? 'guardando' : 'guardado');
+    });
+    return true;
+  }
+
+  private procesarRechazoSnapshot(mensaje: MensajeWS): void {
+    if (!this.guardadoPendiente || mensaje.proyecto_id !== this.proyectoActual) return;
+    if (!requestCorresponde(this.requestPendiente, mensaje)) return;
+
+    this.cancelarTimeoutGuardado();
+    const ultimo = this.snapshotEnDebounce || this.snapshotEnCola || this.snapshotPendiente;
+    if (ultimo) this.snapshotEnCola = ultimo;
+    this.snapshotPendiente = null;
+    this.guardadoPendiente = false;
+    this.requestPendiente = null;
+    this.recuperacionPendiente = true;
+    this.ngZone.run(() => {
+      this._estadoGuardado$.next('error');
+      if (esConflictoRevision(mensaje)) this._conflicto$.next(mensaje);
+    });
+  }
+
+  private hayCambiosLocalesPendientes(): boolean {
+    return this.debouncePendiente || this.snapshotEnDebounce !== null || this.snapshotEnCola !== null;
+  }
+
+  private rebasarPendientesTrasConfirmacionPropia(revision: number): void {
+    if (this.snapshotEnDebounce) {
+      this.snapshotEnDebounce.expectedRevision = revision;
+    }
+    if (this.snapshotEnCola) {
+      this.snapshotEnCola.expectedRevision = revision;
+    }
+  }
+
+  private iniciarTimeoutGuardado(requestId: string): void {
+    this.cancelarTimeoutGuardado();
+    this.timeoutGuardadoSub = timer(SNAPSHOT_CONFIRMATION_TIMEOUT_MS).subscribe(() => {
+      if (this.requestPendiente === requestId) this.marcarGuardadoIncierto();
+    });
+  }
+
+  private iniciarDebounceSnapshots(): void {
+    this.snapshotSub?.unsubscribe();
+    this.snapshotSub = this._snapshotTrigger$.pipe(
+      debounceTime(2000)
+    ).subscribe((pendiente) => {
+      if (this.snapshotEnDebounce !== pendiente) return;
+      this.debouncePendiente = false;
+      this.snapshotEnDebounce = null;
+      this.encolarOEnviarSnapshot(pendiente);
+    });
+  }
+
+  private cancelarTimeoutGuardado(): void {
+    this.timeoutGuardadoSub?.unsubscribe();
+    this.timeoutGuardadoSub = null;
+  }
+
+  private marcarGuardadoIncierto(): void {
+    if (!this.guardadoPendiente && !this.hayCambiosLocalesPendientes()) return;
+    this.cancelarTimeoutGuardado();
+    const ultimo = this.snapshotEnDebounce || this.snapshotEnCola || this.snapshotPendiente;
+    if (ultimo) this.snapshotEnCola = ultimo;
+    this.snapshotPendiente = null;
+    this.guardadoPendiente = false;
+    this.requestPendiente = null;
+    this.recuperacionPendiente = true;
+    this._estadoGuardado$.next('error');
   }
 
   private enviarMensaje(mensaje: MensajeWS): void {

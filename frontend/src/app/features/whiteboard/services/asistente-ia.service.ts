@@ -350,9 +350,12 @@ export class AsistenteIaService {
           coord_y: coordY,
           ancho: 200,
           es_intermedia: Boolean(ent.es_intermedia),
+          tipo_clasificador: 'clase',
+          abstracto: false,
           pos_x: ent.pos_x,
           pos_y: ent.pos_y,
-          atributos: atributosNormalizados
+          atributos: atributosNormalizados,
+          operaciones: []
         };
       }
     );
@@ -913,7 +916,10 @@ export class AsistenteIaService {
           coord_y: Math.round(centro.y - 50 + offsetBase + i * 40),
           ancho: 200,
           es_intermedia: Boolean(entIA.es_intermedia),
-          atributos
+          tipo_clasificador: 'clase',
+          abstracto: false,
+          atributos,
+          operaciones: []
         };
 
         entidadesACrear.push(entidadNueva);
@@ -1142,6 +1148,8 @@ export class AsistenteIaService {
               coord_y: Math.round(centro.y - 80),
               ancho: 200,
               es_intermedia: true,
+              tipo_clasificador: 'entidad_persistente',
+              abstracto: false,
               atributos: [
                 {
                   id: generarIdFn(),
@@ -1151,7 +1159,8 @@ export class AsistenteIaService {
                   es_nulo: false,
                   orden: 1
                 }
-              ]
+              ],
+              operaciones: []
             };
             entidadesACrear.push(entIntermedia);
             entidadesCreadasPorNombre.set(nombreIntermedio, entIntermedia);

@@ -100,7 +100,7 @@ class XMIExporter:
                 'value': str(upper),
             })
 
-    def _agregar_atributos_a_clase(self, clase_elem: ET.Element, entidad: Entidad) -> None:
+    def _agregar_atributos_a_clase(self, clase_elem: ET.Element, entidad: Entidad, entidad_eaid_map=None) -> None:
         """Agrega los ownedAttribute de una entidad a su elemento XML correspondiente."""
         for attr in entidad.atributos.all().order_by('orden', 'id'):
             attr_id = self._generar_eaid("EAID")
@@ -108,8 +108,8 @@ class XMIExporter:
                 f'{{{XMI_NS}}}type': 'uml:Property',
                 f'{{{XMI_NS}}}id': attr_id,
                 'name': attr.nombre,
-                'visibility': 'private',
-                'isStatic': 'false',
+                'visibility': attr.visibilidad,
+                'isStatic': 'true' if attr.es_estatico else 'false',
                 'isReadOnly': 'false',
                 'isDerived': 'false',
                 'isOrdered': 'false',
@@ -118,6 +118,8 @@ class XMIExporter:
             }
             if attr.es_clave:
                 attr_dict['isID'] = 'true'
+            if attr.valor_predeterminado:
+                attr_dict['default'] = attr.valor_predeterminado
 
             attr_elem = ET.SubElement(clase_elem, 'ownedAttribute', attr_dict)
 
@@ -125,10 +127,33 @@ class XMIExporter:
             # (evita que EA renderice el sufijo '[0..1]' en el texto del diagrama para campos nulos)
             self._crear_multiplicidad_elementos(attr_elem, 1, 1)
 
-            tipo_eajava = self.TIPO_A_EAJAVA.get(attr.tipo, 'EAJava_char')
+            tipo_eajava = (entidad_eaid_map or {}).get(attr.tipo_referencia_id) or self.TIPO_A_EAJAVA.get(attr.tipo, 'EAJava_char')
             ET.SubElement(attr_elem, 'type', {
                 f'{{{XMI_NS}}}idref': tipo_eajava,
             })
+
+    def _agregar_operaciones_a_clase(self, clase_elem: ET.Element, entidad: Entidad, entidad_eaid_map) -> None:
+        for operacion in entidad.operaciones.all().prefetch_related('parametros').order_by('orden', 'id'):
+            op_elem = ET.SubElement(clase_elem, 'ownedOperation', {
+                f'{{{XMI_NS}}}type': 'uml:Operation', f'{{{XMI_NS}}}id': self._generar_eaid('EAID'),
+                'name': operacion.nombre, 'visibility': operacion.visibilidad,
+                'isStatic': 'true' if operacion.es_estatico else 'false',
+                'isAbstract': 'true' if operacion.es_abstracto else 'false',
+            })
+            for parametro in operacion.parametros.all().order_by('orden', 'id'):
+                p_elem = ET.SubElement(op_elem, 'ownedParameter', {
+                    f'{{{XMI_NS}}}type': 'uml:Parameter', f'{{{XMI_NS}}}id': self._generar_eaid('EAID'),
+                    'name': parametro.nombre, 'direction': 'in',
+                })
+                tipo_id = entidad_eaid_map.get(parametro.tipo_referencia_id) or self.TIPO_A_EAJAVA.get(parametro.tipo, 'EAJava_char')
+                ET.SubElement(p_elem, 'type', {f'{{{XMI_NS}}}idref': tipo_id})
+            retorno = ET.SubElement(op_elem, 'ownedParameter', {
+                f'{{{XMI_NS}}}type': 'uml:Parameter', f'{{{XMI_NS}}}id': self._generar_eaid('EAID'),
+                'direction': 'return',
+            })
+            retorno_id = entidad_eaid_map.get(operacion.retorno_referencia_id) or self.TIPO_A_EAJAVA.get(operacion.tipo_retorno)
+            if retorno_id:
+                ET.SubElement(retorno, 'type', {f'{{{XMI_NS}}}idref': retorno_id})
 
     def exportar_xml(self) -> str:
         """
@@ -167,21 +192,26 @@ class XMIExporter:
         entidad_localid_map: Dict[int, str] = {}
         clase_elements_map: Dict[int, ET.Element] = {}
 
-        entidades = list(self.proyecto.entidades.exclude(estado=Entidad.Estado.PAPELERA).prefetch_related('atributos'))
+        entidades = list(self.proyecto.entidades.exclude(estado=Entidad.Estado.PAPELERA).prefetch_related('atributos', 'operaciones__parametros'))
 
-        # 1. Crear packagedElement para cada Entidad (Class o AssociationClass)
+        # Reservar todos los IDs antes de serializar miembros para que las
+        # referencias entre clasificadores funcionen en cualquier orden.
         for idx, entidad in enumerate(entidades):
-            eaid = self._generar_eaid("EAID")
-            entidad_eaid_map[entidad.id] = eaid
+            entidad_eaid_map[entidad.id] = self._generar_eaid("EAID")
             entidad_duid_map[entidad.id] = self._generar_duid()
             entidad_localid_map[entidad.id] = str(idx + 1)
 
-            tipo_uml = 'uml:AssociationClass' if entidad.es_intermedia else 'uml:Class'
+        # 1. Crear packagedElement para cada Entidad (Class o AssociationClass)
+        for idx, entidad in enumerate(entidades):
+            eaid = entidad_eaid_map[entidad.id]
+
+            tipo_uml = 'uml:AssociationClass' if entidad.es_intermedia else ('uml:Interface' if entidad.tipo_clasificador == Entidad.TipoClasificador.INTERFAZ else 'uml:Class')
             clase_elem = ET.SubElement(pkg, 'packagedElement', {
                 f'{{{XMI_NS}}}type': tipo_uml,
                 f'{{{XMI_NS}}}id': eaid,
                 'name': entidad.nombre,
                 'visibility': 'public',
+                'isAbstract': 'true' if entidad.abstracto else 'false',
             })
             clase_elements_map[entidad.id] = clase_elem
 
@@ -189,7 +219,8 @@ class XMIExporter:
             # Para las clases intermedias (AssociationClass), los atributos se agregan
             # DESPUÉS de memberEnd y ownedEnd para respetar el orden estricto de Enterprise Architect.
             if not entidad.es_intermedia:
-                self._agregar_atributos_a_clase(clase_elem, entidad)
+                self._agregar_atributos_a_clase(clase_elem, entidad, entidad_eaid_map)
+                self._agregar_operaciones_a_clase(clase_elem, entidad, entidad_eaid_map)
 
         # 2. Procesar Relaciones
         relaciones = list(self.proyecto.relaciones.filter(
@@ -257,6 +288,21 @@ class XMIExporter:
                     'direction': 'Source -> Destination',
                     'assoc_class_eaid': None,
                 })
+            elif rel.tipo == Relacion.Tipo.IMPLEMENTACION:
+                hija_elem = clase_elements_map.get(rel.entidad_origen_id)
+                realization_id = self._generar_eaid('EAID')
+                if hija_elem is not None:
+                    ET.SubElement(hija_elem, 'interfaceRealization', {
+                        f'{{{XMI_NS}}}type': 'uml:InterfaceRealization', f'{{{XMI_NS}}}id': realization_id,
+                        'client': origen_eaid, 'supplier': destino_eaid, 'contract': destino_eaid,
+                    })
+                connector_info_list.append({
+                    'assoc_id': realization_id, 'nombre': rel.nombre_relacion or '',
+                    'source_id': rel.entidad_origen_id, 'source_eaid': origen_eaid, 'source_nombre': rel.entidad_origen.nombre,
+                    'target_id': rel.entidad_destino_id, 'target_eaid': destino_eaid, 'target_nombre': rel.entidad_destino.nombre,
+                    'card_source': '', 'card_target': '', 'agg_source': 'none', 'agg_target': 'none',
+                    'ea_type': 'Realisation', 'subtype': None, 'direction': 'Source -> Destination', 'assoc_class_eaid': None,
+                })
             elif rel.clase_asociacion_id and rel.clase_asociacion_id in clase_elements_map:
                 # Clase de Asociación (N:M): los ends se integran directamente en <uml:AssociationClass>
                 assoc_elem = clase_elements_map[rel.clase_asociacion_id]
@@ -312,7 +358,8 @@ class XMIExporter:
                 # 5. Atributos de la clase intermedia después de los ends
                 intermedia_ent = next((e for e in entidades if e.id == rel.clase_asociacion_id), None)
                 if intermedia_ent:
-                    self._agregar_atributos_a_clase(assoc_elem, intermedia_ent)
+                    self._agregar_atributos_a_clase(assoc_elem, intermedia_ent, entidad_eaid_map)
+                    self._agregar_operaciones_a_clase(assoc_elem, intermedia_ent, entidad_eaid_map)
 
                 connector_info_list.append({
                     'assoc_id': conn_id,
@@ -432,6 +479,10 @@ class XMIExporter:
                         'isDerivedUnion': 'false',
                         'aggregation': 'none',
                     }
+                    if rel.rol_destino:
+                        dst_end_attrs['name'] = rel.rol_destino
+                    if rel.navegable_destino:
+                        dst_end_attrs['isNavigable'] = 'true'
                     if rel.nombre_relacion:
                         dst_end_attrs['name'] = rel.nombre_relacion
                     dst_end = ET.SubElement(assoc_elem, 'ownedEnd', dst_end_attrs)
@@ -455,6 +506,10 @@ class XMIExporter:
                         'isDerivedUnion': 'false',
                         'aggregation': 'none',
                     }
+                    if rel.rol_origen:
+                        src_end_attrs['name'] = rel.rol_origen
+                    if rel.navegable_origen:
+                        src_end_attrs['isNavigable'] = 'true'
                     src_end = ET.SubElement(assoc_elem, 'ownedEnd', src_end_attrs)
                     ET.SubElement(src_end, 'type', {f'{{{XMI_NS}}}idref': origen_eaid})
                     if card_source:
@@ -491,7 +546,8 @@ class XMIExporter:
             if entidad.es_intermedia and entidad.id not in entidades_intermedias_procesadas:
                 assoc_elem = clase_elements_map.get(entidad.id)
                 if assoc_elem is not None:
-                    self._agregar_atributos_a_clase(assoc_elem, entidad)
+                    self._agregar_atributos_a_clase(assoc_elem, entidad, entidad_eaid_map)
+                    self._agregar_operaciones_a_clase(assoc_elem, entidad, entidad_eaid_map)
 
         # 3. Construir <xmi:Extension extender="Enterprise Architect" extenderID="6.5">
         extension = ET.SubElement(root, f'{{{XMI_NS}}}Extension', {

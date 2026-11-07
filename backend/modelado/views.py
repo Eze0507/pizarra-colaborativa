@@ -1,12 +1,18 @@
 from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db import transaction
 
 from .models import Proyecto, Entidad
 from usuario.models import UserColaborador
+from .permissions import (
+    ProjectAction,
+    accessible_projects,
+    get_project_role,
+    require_project_action,
+)
+from .realtime import notificar_evento_proyecto_sync, notificar_revocacion_acceso_sync
 from .serializers import (
     ProyectoCreateSerializer,
     ProyectoDetailSerializer,
@@ -16,6 +22,13 @@ from .serializers import (
     RelacionDiagramaSerializer,
     ColaboradorDetalleSerializer,
     InvitacionPendienteSerializer,
+)
+from .validation import PROFILES, UMLValidator
+from .consistency import (
+    InvalidExpectedRevision,
+    StaleRevision,
+    lock_project_for_write,
+    read_authoritative_state,
 )
 
 
@@ -32,12 +45,7 @@ class ProyectoListCreateView(generics.ListCreateAPIView):
         return ProyectoDetailSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        # Proyectos propios o donde es colaborador con estado activo
-        return Proyecto.objects.filter(
-            Q(propietario=user) |
-            Q(colaboradores_detalle__usuario=user, colaboradores_detalle__estado=UserColaborador.Estado.ACTIVO)
-        ).distinct()
+        return accessible_projects(self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = ProyectoCreateSerializer(data=request.data, context={'request': request})
@@ -55,17 +63,70 @@ class ProyectoDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = ProyectoDetailSerializer
 
-    def get_queryset(self):
-        user = self.request.user
-        return Proyecto.objects.filter(
-            Q(propietario=user) |
-            Q(colaboradores_detalle__usuario=user, colaboradores_detalle__estado=UserColaborador.Estado.ACTIVO)
-        ).distinct()
+    def get_object(self):
+        proyecto = get_object_or_404(Proyecto, pk=self.kwargs['pk'])
+        action = {
+            'GET': ProjectAction.READ,
+            'HEAD': ProjectAction.READ,
+            'OPTIONS': ProjectAction.READ,
+            'PUT': ProjectAction.WRITE,
+            'PATCH': ProjectAction.WRITE,
+            'DELETE': ProjectAction.DELETE,
+        }.get(self.request.method, ProjectAction.READ)
+        require_project_action(self.request.user, proyecto, action)
+        return proyecto
 
     def perform_destroy(self, instance):
-        if instance.propietario != self.request.user:
-            raise PermissionDenied("Solo el propietario puede eliminar este proyecto.")
+        require_project_action(
+            self.request.user,
+            instance,
+            ProjectAction.DELETE,
+            "Solo el propietario puede eliminar este proyecto.",
+        )
         instance.delete()
+
+    def update(self, request, *args, **kwargs):
+        current = self.get_object()
+        if "datos_diagrama" in request.data:
+            return Response(
+                {"code": "snapshot_write_forbidden", "message": "Use el escritor autoritativo del diagrama."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        expected = request.data.get("expected_revision")
+        payload = request.data.copy()
+        payload.pop("expected_revision", None)
+        if not payload:
+            return Response(
+                {"code": "empty_write", "message": "No se proporcionaron campos modificables."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            with transaction.atomic():
+                project = lock_project_for_write(current.id, expected)
+                require_project_action(request.user, project, ProjectAction.WRITE)
+                serializer = self.get_serializer(
+                    project, data=payload, partial=kwargs.get("partial", False)
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                project.revision += 1
+                project.save(update_fields=["revision", "fecha_actualizacion"])
+                transaction.on_commit(lambda: notificar_evento_proyecto_sync(
+                    project.id, "diagram.updated",
+                    {"proyecto_id": project.id, "revision": project.revision, "usuario_id": request.user.id},
+                ))
+                data = self.get_serializer(project).data
+        except InvalidExpectedRevision as exc:
+            return Response(
+                {"code": exc.code, "message": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except StaleRevision as exc:
+            return Response(
+                {"code": exc.code, "message": str(exc), "current_revision": exc.current_revision},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(data)
 
 
 class InvitarColaboradorView(APIView):
@@ -78,12 +139,10 @@ class InvitarColaboradorView(APIView):
     def post(self, request, pk, *args, **kwargs):
         proyecto = get_object_or_404(Proyecto, pk=pk)
 
-        # Validar que el usuario autenticado sea el propietario
-        if proyecto.propietario != request.user:
-            return Response(
-                {"detail": "Solo el propietario del proyecto puede invitar a nuevos colaboradores."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        require_project_action(
+            request.user, proyecto, ProjectAction.MANAGE,
+            "Solo el propietario del proyecto puede invitar a nuevos colaboradores."
+        )
 
         serializer = InvitarColaboradorSerializer(
             data=request.data,
@@ -150,41 +209,18 @@ class DiagramaCargaInicialView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, pk, *args, **kwargs):
-        # 1. Obtener proyecto con prefetch optimizado para evitar consultas N+1
-        proyecto = get_object_or_404(
-            Proyecto.objects.prefetch_related('entidades__atributos', 'relaciones'),
-            pk=pk
-        )
+        proyecto = get_object_or_404(Proyecto, pk=pk)
 
         user = request.user
-        es_propietario = (proyecto.propietario == user)
-        rol_usuario = 'propietario' if es_propietario else None
+        require_project_action(
+            user, proyecto, ProjectAction.READ,
+            "No tienes permiso para acceder al diagrama de este proyecto."
+        )
+        rol_usuario = get_project_role(user, proyecto)
+        es_propietario = rol_usuario == UserColaborador.Rol.PROPIETARIO
 
-        # 2. Verificar permisos de acceso
-        if not es_propietario:
-            colaboracion = UserColaborador.objects.filter(
-                proyecto=proyecto,
-                usuario=user,
-                estado=UserColaborador.Estado.ACTIVO
-            ).first()
-
-            if not colaboracion:
-                return Response(
-                    {"detail": "No tienes permiso para acceder al diagrama de este proyecto."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            rol_usuario = colaboracion.rol
-
-        # 3. Filtrar entidades activas (excluyendo papelera)
-        entidades_qs = proyecto.entidades.exclude(estado=Entidad.Estado.PAPELERA).order_by('id')
-        entidades_data = EntidadDiagramaSerializer(entidades_qs, many=True).data
-
-        # 4. Filtrar relaciones entre entidades existentes
-        relaciones_qs = proyecto.relaciones.filter(
-            entidad_origen__in=entidades_qs,
-            entidad_destino__in=entidades_qs
-        ).order_by('id')
-        relaciones_data = RelacionDiagramaSerializer(relaciones_qs, many=True).data
+        state = read_authoritative_state(pk)
+        proyecto = state.project
 
         # 5. Armar respuesta estructurada compatible con JointJS y Yjs
         return Response({
@@ -194,7 +230,8 @@ class DiagramaCargaInicialView(APIView):
                 "nombre": proyecto.nombre,
                 "descripcion": proyecto.descripcion,
                 "paquete_base": proyecto.paquete_base,
-                "datos_diagrama": proyecto.datos_diagrama or {},
+                "datos_diagrama": state.visual_snapshot,
+                "revision": state.revision,
                 "propietario": {
                     "id": proyecto.propietario.id,
                     "username": proyecto.propietario.username,
@@ -204,9 +241,31 @@ class DiagramaCargaInicialView(APIView):
                 "rol_usuario": rol_usuario,
                 "fecha_actualizacion": proyecto.fecha_actualizacion,
             },
-            "entidades": entidades_data,
-            "relaciones": relaciones_data,
+            "entidades": state.entities,
+            "relaciones": state.relations,
         }, status=status.HTTP_200_OK)
+
+
+class ProyectoValidacionView(APIView):
+    """Valida en modo lectura el modelo ORM guardado de un proyecto."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk, *args, **kwargs):
+        proyecto = get_object_or_404(Proyecto, pk=pk)
+        require_project_action(
+            request.user, proyecto, ProjectAction.READ,
+            "No tienes permiso para validar este proyecto.",
+        )
+        perfil = request.query_params.get("perfil", "uml").lower()
+        if perfil not in PROFILES:
+            return Response(
+                {"detail": "Perfil inválido. Use uml, java o jpa."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        state = read_authoritative_state(pk)
+        result = UMLValidator(state.model, perfil).validate()
+        result["revision"] = state.revision
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class ProyectoColaboradoresListView(APIView):
@@ -219,19 +278,10 @@ class ProyectoColaboradoresListView(APIView):
     def get(self, request, pk, *args, **kwargs):
         proyecto = get_object_or_404(Proyecto, pk=pk)
 
-        # Validar permisos: Propietario o colaborador activo
-        es_propietario = (proyecto.propietario == request.user)
-        if not es_propietario:
-            tiene_acceso = UserColaborador.objects.filter(
-                proyecto=proyecto,
-                usuario=request.user,
-                estado=UserColaborador.Estado.ACTIVO
-            ).exists()
-            if not tiene_acceso:
-                return Response(
-                    {"detail": "No tienes permiso para consultar los colaboradores de este proyecto."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        require_project_action(
+            request.user, proyecto, ProjectAction.READ,
+            "No tienes permiso para consultar los colaboradores de este proyecto."
+        )
 
         colaboradores = proyecto.colaboradores_detalle.all().select_related('usuario').order_by('fecha_ingreso')
         data = ColaboradorDetalleSerializer(colaboradores, many=True).data
@@ -253,11 +303,10 @@ class ColaboradorReenviarInvitacionView(APIView):
 
         proyecto = get_object_or_404(Proyecto, pk=pk)
 
-        if proyecto.propietario != request.user:
-            return Response(
-                {"detail": "Solo el propietario del proyecto puede reenviar invitaciones."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        require_project_action(
+            request.user, proyecto, ProjectAction.MANAGE,
+            "Solo el propietario del proyecto puede reenviar invitaciones."
+        )
 
         colaboracion = get_object_or_404(UserColaborador, pk=colaborador_id, proyecto=proyecto)
 
@@ -315,11 +364,10 @@ class ColaboradorEliminarView(APIView):
     def delete(self, request, pk, colaborador_id, *args, **kwargs):
         proyecto = get_object_or_404(Proyecto, pk=pk)
 
-        if proyecto.propietario != request.user:
-            return Response(
-                {"detail": "Solo el propietario del proyecto puede eliminar colaboradores."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        require_project_action(
+            request.user, proyecto, ProjectAction.MANAGE,
+            "Solo el propietario del proyecto puede eliminar colaboradores."
+        )
 
         colaboracion = get_object_or_404(UserColaborador, pk=colaborador_id, proyecto=proyecto)
 
@@ -330,7 +378,12 @@ class ColaboradorEliminarView(APIView):
             )
 
         username = colaboracion.usuario.username
-        colaboracion.delete()
+        usuario_id = colaboracion.usuario_id
+        with transaction.atomic():
+            colaboracion.delete()
+            transaction.on_commit(
+                lambda: notificar_revocacion_acceso_sync(proyecto.id, usuario_id)
+            )
 
         return Response({
             "detail": f"Colaborador '{username}' eliminado exitosamente del proyecto."
