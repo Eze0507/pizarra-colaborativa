@@ -1,0 +1,56 @@
+<div *ngIf="visible" class="spring-modal-backdrop" role="presentation" (click)="!generando && cerrar.emit()">
+  <section class="spring-modal" role="dialog" aria-modal="true" aria-labelledby="spring-modal-title" (click)="$event.stopPropagation()">
+    <header>
+      <div>
+        <h2 id="spring-modal-title">Generación Java</h2>
+        <p>Genera y descarga un proyecto Spring Boot desde la revisión confirmada.</p>
+      </div>
+      <button type="button" class="close" [disabled]="generando" (click)="cerrar.emit()" aria-label="Cerrar">×</button>
+    </header>
+
+    <div class="spring-form">
+      <label>
+        Nombre del proyecto
+        <input name="springProjectName" [(ngModel)]="nombreProyecto" (blur)="normalizarNombreProyecto()" maxlength="64" autocomplete="off" placeholder="tienda" />
+      </label>
+      <small class="field-error" *ngIf="errorNombre">{{ errorNombre }}</small>
+
+      <label>
+        Paquete base Java
+        <input name="springBasePackage" [(ngModel)]="paqueteBase" maxlength="200" autocomplete="off" placeholder="com.ejemplo.tienda" />
+      </label>
+      <small class="field-error" *ngIf="errorPaquete">{{ errorPaquete }}</small>
+
+      <fieldset>
+        <legend>Capas</legend>
+        <label *ngFor="let capa of capas">
+          <input
+            type="checkbox"
+            [checked]="opciones[capa.key]"
+            (change)="cambiarOpcion(capa.key, $any($event.target).checked)"
+          />
+          <span>{{ capa.label }}</span>
+        </label>
+      </fieldset>
+      <small class="option-message" *ngIf="mensajeOpciones">{{ mensajeOpciones }}</small>
+
+      <div class="blocked" *ngIf="!puedeGenerar && motivoBloqueo" role="status">
+        {{ motivoBloqueo }}
+        <button *ngIf="puedeGuardar" type="button" (click)="guardar.emit()">Guardar ahora</button>
+      </div>
+      <div class="server-error" *ngIf="errorServidor" role="alert">{{ errorServidor }}</div>
+    </div>
+
+    <footer>
+      <button type="button" class="secondary" [disabled]="generando" (click)="cerrar.emit()">Cancelar</button>
+      <button
+        type="button"
+        class="primary"
+        [disabled]="!formularioValido || !puedeGenerar || generando"
+        (click)="enviar()"
+      >
+        {{ generando ? 'Generando…' : 'Generar y descargar' }}
+      </button>
+    </footer>
+  </section>
+</div>

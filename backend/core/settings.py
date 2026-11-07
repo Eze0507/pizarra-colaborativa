@@ -66,6 +66,7 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['Content-Disposition', 'Content-Length']
 
 ROOT_URLCONF = 'core.urls'
 

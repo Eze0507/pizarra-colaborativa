@@ -9,6 +9,7 @@ const OPCIONES_RELACIONES_DEFECTO: OpcionRelacion[] = [
   { tipo: 'agregacion', nombre: 'Agregación', subtitulo: 'Contenedor débil (rombo hueco)', svgIcon: 'agregacion' },
   { tipo: 'composicion', nombre: 'Composición', subtitulo: 'Contenedor fuerte (rombo lleno)', svgIcon: 'composicion' },
   { tipo: 'herencia', nombre: 'Herencia (Generalización)', subtitulo: 'Especialización de tablas', svgIcon: 'herencia' },
+  { tipo: 'implementacion', nombre: 'Implementación', subtitulo: 'Realización de una interfaz', svgIcon: 'herencia' },
   { tipo: 'clase_asociacion', nombre: 'Clase de Asociación (N:M)', subtitulo: 'Enlace principal sólido (0..* a 0..*) con clase flotante punteada', svgIcon: 'clase_asociacion' }
 ];
 

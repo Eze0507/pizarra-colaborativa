@@ -12,6 +12,13 @@ validador_cardinalidad = RegexValidator(
 )
 
 
+class VisibilidadUML(models.TextChoices):
+    PUBLIC = 'public', 'Public'
+    PROTECTED = 'protected', 'Protected'
+    PRIVATE = 'private', 'Private'
+    PACKAGE = 'package', 'Package'
+
+
 class Proyecto(models.Model):
     codigo = models.CharField(
         max_length=20,
@@ -40,6 +47,10 @@ class Proyecto(models.Model):
         default=dict,
         blank=True,
         help_text="Snapshot del diagrama UML en formato JSON (posiciones, estado del lienzo y metadatos visuales)."
+    )
+    revision = models.PositiveBigIntegerField(
+        default=0,
+        help_text="Revisión monotónica del estado UML confirmado del proyecto.",
     )
 
     propietario = models.ForeignKey(
@@ -98,6 +109,11 @@ class Entidad(models.Model):
         BLOQUEADO = 'bloqueado', 'Bloqueado'
         PAPELERA = 'papelera', 'Papelera'
 
+    class TipoClasificador(models.TextChoices):
+        CLASE = 'clase', 'Clase'
+        ENTIDAD_PERSISTENTE = 'entidad_persistente', 'Entidad persistente'
+        INTERFAZ = 'interfaz', 'Interfaz'
+
     proyecto = models.ForeignKey(
         Proyecto,
         on_delete=models.CASCADE,
@@ -130,6 +146,13 @@ class Entidad(models.Model):
         default=False,
         help_text="Indica si la entidad es una tabla intermedia nacida a partir de una relación N:M (clase de asociación)."
     )
+    tipo_clasificador = models.CharField(
+        max_length=30,
+        choices=TipoClasificador.choices,
+        default=TipoClasificador.CLASE,
+        help_text="Clasificación UML. Los registros históricos se interpretan como clases no persistentes."
+    )
+    abstracto = models.BooleanField(default=False)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
@@ -163,11 +186,24 @@ class Atributo(models.Model):
         help_text="Nombre del atributo."
     )
     tipo = models.CharField(
-        max_length=20,
-        choices=Tipo.choices,
+        max_length=150,
         default=Tipo.STRING,
-        help_text="Tipo de dato del atributo (string, integer, long, double, boolean, date)."
+        help_text="Nombre de tipo simple conservado por compatibilidad."
     )
+    tipo_referencia = models.ForeignKey(
+        Entidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='atributos_que_referencian',
+    )
+    visibilidad = models.CharField(
+        max_length=20,
+        choices=VisibilidadUML.choices,
+        default=VisibilidadUML.PRIVATE,
+    )
+    es_estatico = models.BooleanField(default=False)
+    valor_predeterminado = models.CharField(max_length=255, blank=True, default='')
     es_clave = models.BooleanField(
         default=False,
         help_text="Indica si el atributo es clave primaria o identificador."
@@ -192,12 +228,66 @@ class Atributo(models.Model):
         return f"{self.nombre}: {self.tipo}{pk_indicator}"
 
 
+class Operacion(models.Model):
+    entidad = models.ForeignKey(Entidad, on_delete=models.CASCADE, related_name='operaciones')
+    nombre = models.CharField(max_length=150)
+    visibilidad = models.CharField(
+        max_length=20,
+        choices=VisibilidadUML.choices,
+        default=VisibilidadUML.PUBLIC,
+    )
+    tipo_retorno = models.CharField(max_length=150, default='void')
+    retorno_referencia = models.ForeignKey(
+        Entidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='operaciones_que_retornan',
+    )
+    orden = models.PositiveIntegerField(default=0)
+    es_estatico = models.BooleanField(default=False)
+    es_abstracto = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'operacion'
+        ordering = ['orden', 'id']
+        verbose_name = 'Operación UML'
+        verbose_name_plural = 'Operaciones UML'
+
+    def __str__(self):
+        return f"{self.nombre}(): {self.tipo_retorno}"
+
+
+class ParametroOperacion(models.Model):
+    operacion = models.ForeignKey(Operacion, on_delete=models.CASCADE, related_name='parametros')
+    nombre = models.CharField(max_length=150)
+    tipo = models.CharField(max_length=150, default='string')
+    tipo_referencia = models.ForeignKey(
+        Entidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='parametros_que_referencian',
+    )
+    orden = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'parametro_operacion'
+        ordering = ['orden', 'id']
+        verbose_name = 'Parámetro de operación'
+        verbose_name_plural = 'Parámetros de operación'
+
+    def __str__(self):
+        return f"{self.nombre}: {self.tipo}"
+
+
 class Relacion(models.Model):
     class Tipo(models.TextChoices):
         ASOCIACION = 'asociacion', 'Asociación'
         AGREGACION = 'agregacion', 'Agregación'
         COMPOSICION = 'composicion', 'Composición'
         HERENCIA = 'herencia', 'Herencia (Generalización)'
+        IMPLEMENTACION = 'implementacion', 'Implementación de interfaz'
 
     proyecto = models.ForeignKey(
         Proyecto,
@@ -235,7 +325,7 @@ class Relacion(models.Model):
         max_length=30,
         choices=Tipo.choices,
         default=Tipo.ASOCIACION,
-        help_text="Tipo de relación conceptual UML (asociacion, agregacion, composicion, herencia)."
+        help_text="Tipo de relación UML (asociacion, agregacion, composicion, herencia, implementacion)."
     )
     cardinalidad_origen = models.CharField(
         max_length=20,
@@ -263,6 +353,11 @@ class Relacion(models.Model):
         default='',
         help_text="Identificador del puerto en la entidad de destino (ej. 'bottom-0', 'left-2')."
     )
+
+    rol_origen = models.CharField(max_length=150, blank=True, default='')
+    rol_destino = models.CharField(max_length=150, blank=True, default='')
+    navegable_origen = models.BooleanField(default=False)
+    navegable_destino = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'relacion'

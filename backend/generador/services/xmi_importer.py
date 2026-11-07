@@ -1,11 +1,234 @@
 import re
 import xml.etree.ElementTree as ET
+from collections import Counter
 from typing import Dict, List, Any, Optional, Tuple
 from django.db import transaction
-from modelado.models import Proyecto, Entidad, Atributo, Relacion
+from modelado.models import Proyecto, Entidad, Atributo, Relacion, Operacion, ParametroOperacion
 
 XMI_NS = 'http://schema.omg.org/spec/XMI/2.1'
 UML_NS = 'http://schema.omg.org/spec/UML/2.1'
+SUPPORTED_JPA_KEY_TYPES = {
+    Atributo.Tipo.STRING,
+    Atributo.Tipo.INTEGER,
+    Atributo.Tipo.LONG,
+}
+
+LEGACY_FK_ATTRIBUTE_RE = re.compile(
+    r'^\s*(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)\s*'
+    r'\(\s*FK\s*;\s*(?P<target>[^)]+?)\s*\)\s*[}\]]*\s*$',
+    re.IGNORECASE,
+)
+
+
+def parse_legacy_fk_attribute_name(value: str) -> Tuple[str, Optional[str]]:
+    """Separa ``campo(FK; tabla)`` sin inventar ni alterar la relación UML."""
+    raw = (value or '').strip()
+    match = LEGACY_FK_ATTRIBUTE_RE.fullmatch(raw)
+    if not match:
+        return raw, None
+    return match.group('name'), match.group('target').strip()
+
+
+def resolve_legacy_fk_name_collisions(attributes: List[Dict[str, Any]]) -> None:
+    """Hace únicos solo los nombres FK anotados; no oculta duplicados UML comunes."""
+    plain_names = {
+        item['nombre'] for item in attributes if item.get('fk_target_name') is None
+    }
+    used_names: set[str] = set()
+    for item in attributes:
+        base_name = item['nombre']
+        target_name = item.get('fk_target_name')
+        candidate = base_name
+        if target_name is not None and (candidate in plain_names or candidate in used_names):
+            suffix = re.sub(r'[^A-Za-z0-9_$]+', '_', target_name).strip('_') or 'ref'
+            candidate = f'{base_name}_{suffix}'
+            numbered_candidate = candidate
+            sequence = 2
+            while numbered_candidate in plain_names or numbered_candidate in used_names:
+                numbered_candidate = f'{candidate}_{sequence}'
+                sequence += 1
+            candidate = numbered_candidate
+        item['nombre'] = candidate
+        used_names.add(candidate)
+
+
+def prepare_imported_persistence(
+    raw_classes: Dict[str, Dict[str, Any]],
+    preserved_keys: Optional[Dict[str, str]] = None,
+) -> Dict[str, int]:
+    """Prepara JPA solo cuando existe una clave simple inequívoca y compatible."""
+    preserved_keys = preserved_keys or {}
+    imported_name_counts = Counter(
+        str(item.get('nombre') or '').casefold() for item in raw_classes.values()
+    )
+    metrics = {
+        'entidades_persistentes': 0,
+        'claves_explicitamente_importadas': 0,
+        'claves_preservadas': 0,
+        'claves_id_inferidas': 0,
+        'entidades_no_elegibles_persistencia': 0,
+    }
+
+    for class_data in raw_classes.values():
+        if (
+            class_data.get('tipo_clasificador') == Entidad.TipoClasificador.INTERFAZ
+            or class_data.get('abstracto')
+        ):
+            metrics['entidades_no_elegibles_persistencia'] += 1
+            continue
+
+        attributes = class_data.get('atributos', [])
+        explicit_keys = [item for item in attributes if item.get('es_clave')]
+        key = None
+        source = None
+
+        if explicit_keys:
+            if len(explicit_keys) == 1:
+                key = explicit_keys[0]
+                source = 'explicit'
+        else:
+            class_name = str(class_data.get('nombre') or '').casefold()
+            preserved_name = (
+                preserved_keys.get(class_name)
+                if imported_name_counts[class_name] == 1
+                else None
+            )
+            if preserved_name:
+                preserved_matches = [
+                    item for item in attributes
+                    if str(item.get('nombre') or '').casefold() == preserved_name
+                ]
+                if len(preserved_matches) == 1:
+                    key = preserved_matches[0]
+                    source = 'preserved'
+
+            if key is None:
+                id_matches = [
+                    item for item in attributes
+                    if str(item.get('nombre') or '').casefold() == 'id'
+                ]
+                if len(id_matches) == 1:
+                    key = id_matches[0]
+                    source = 'inferred'
+
+        if key is None or key.get('tipo') not in SUPPORTED_JPA_KEY_TYPES:
+            metrics['entidades_no_elegibles_persistencia'] += 1
+            continue
+
+        key['es_clave'] = True
+        key['es_nulo'] = False
+        class_data['tipo_clasificador'] = Entidad.TipoClasificador.ENTIDAD_PERSISTENTE
+        metrics['entidades_persistentes'] += 1
+        if source == 'explicit':
+            metrics['claves_explicitamente_importadas'] += 1
+        elif source == 'preserved':
+            metrics['claves_preservadas'] += 1
+        else:
+            metrics['claves_id_inferidas'] += 1
+
+    return metrics
+
+
+def remove_hidden_duplicate_classifiers(
+    raw_classes: Dict[str, Dict[str, Any]],
+    raw_associations: Dict[str, Dict[str, Any]],
+    generalizations: List[Tuple[str, str]],
+    realizations: List[Tuple[str, str]],
+    diagram_positions: Dict[str, Dict[str, float]],
+) -> int:
+    """Omite solo copias identicas, ocultas y sin referencias del XMI.
+
+    Enterprise Architect puede conservar elementos eliminados del diagrama dentro
+    del modelo XMI. Un nombre repetido sigue siendo un error UML salvo cuando hay
+    exactamente una copia visible o referenciada y las demas son copias
+    estructuralmente identicas que no participan en ninguna referencia.
+    """
+
+    def reference_name(reference: Optional[str]) -> Optional[str]:
+        target = raw_classes.get(reference or '')
+        if target is None:
+            return reference
+        return str(target.get('nombre') or '').casefold()
+
+    def signature(class_data: Dict[str, Any]) -> Tuple[Any, ...]:
+        attributes = tuple(
+            (
+                item.get('nombre'), item.get('tipo'),
+                reference_name(item.get('tipo_ref_eaid')),
+                item.get('visibilidad'), bool(item.get('es_estatico')),
+                item.get('valor_predeterminado'), bool(item.get('es_nulo')),
+                bool(item.get('es_clave')),
+            )
+            for item in class_data.get('atributos', [])
+        )
+        operations = tuple(
+            (
+                item.get('nombre'), item.get('visibilidad'),
+                item.get('tipo_retorno'),
+                reference_name(item.get('retorno_ref_eaid')),
+                bool(item.get('es_estatico')), bool(item.get('es_abstracto')),
+                tuple(
+                    (
+                        parameter.get('nombre'), parameter.get('tipo'),
+                        reference_name(parameter.get('tipo_ref_eaid')),
+                    )
+                    for parameter in item.get('parametros', [])
+                ),
+            )
+            for item in class_data.get('operaciones', [])
+        )
+        return (
+            bool(class_data.get('es_intermedia')),
+            class_data.get('tipo_clasificador'),
+            bool(class_data.get('abstracto')),
+            attributes,
+            operations,
+        )
+
+    referenced: set[str] = set()
+    for association_id, association in raw_associations.items():
+        if association.get('is_assoc_class'):
+            referenced.add(association_id)
+        referenced.update(
+            end['class_id']
+            for end in association.get('ends', [])
+            if end.get('class_id')
+        )
+    for source, target in [*generalizations, *realizations]:
+        referenced.update((source, target))
+    for class_data in raw_classes.values():
+        for attribute in class_data.get('atributos', []):
+            if attribute.get('tipo_ref_eaid') in raw_classes:
+                referenced.add(attribute['tipo_ref_eaid'])
+        for operation in class_data.get('operaciones', []):
+            if operation.get('retorno_ref_eaid') in raw_classes:
+                referenced.add(operation['retorno_ref_eaid'])
+            for parameter in operation.get('parametros', []):
+                if parameter.get('tipo_ref_eaid') in raw_classes:
+                    referenced.add(parameter['tipo_ref_eaid'])
+
+    groups: Dict[str, List[str]] = {}
+    for class_id, class_data in raw_classes.items():
+        groups.setdefault(str(class_data.get('nombre') or '').casefold(), []).append(class_id)
+
+    omitted = 0
+    for class_ids in groups.values():
+        if len(class_ids) < 2:
+            continue
+        active = [
+            class_id for class_id in class_ids
+            if class_id in diagram_positions or class_id in referenced
+        ]
+        if len(active) != 1:
+            continue
+        if len({signature(raw_classes[class_id]) for class_id in class_ids}) != 1:
+            continue
+        for class_id in class_ids:
+            if class_id == active[0]:
+                continue
+            del raw_classes[class_id]
+            omitted += 1
+    return omitted
 
 
 class XMIImporter:
@@ -253,6 +476,8 @@ class XMIImporter:
         raw_classes: Dict[str, Dict[str, Any]] = {}
         raw_associations: Dict[str, Dict[str, Any]] = {}
         generalizations: List[Tuple[str, str]] = []  # (subclass_eaid, superclass_eaid)
+        realizations: List[Tuple[str, str]] = []
+        atributos_fk_normalizados = 0
 
         # Mapa auxiliar de ends de asociación que estén embebidos como ownedAttribute en clases
         association_ends_by_assoc: Dict[str, List[Dict[str, Any]]] = {}
@@ -267,9 +492,10 @@ class XMIImporter:
             elem_name = elem.attrib.get('name')
 
             # --- A. CLASES Y CLASES DE ASOCIACIÓN ---
-            if elem_type in ('uml:Class', 'Class', 'uml:AssociationClass', 'AssociationClass') and elem_id:
+            if elem_type in ('uml:Class', 'Class', 'uml:Interface', 'Interface', 'uml:AssociationClass', 'AssociationClass') and elem_id:
                 is_assoc_class = 'AssociationClass' in elem_type
                 attrs_list: List[Dict[str, Any]] = []
+                operations_list: List[Dict[str, Any]] = []
 
                 # Buscar atributos y generalizaciones directas de esta clase
                 for child in elem:
@@ -284,6 +510,11 @@ class XMIImporter:
                                     gen_target = self._obtener_attr(gen_child, 'idref') or gen_child.attrib.get('href')
                         if gen_target:
                             generalizations.append((elem_id, gen_target))
+
+                    elif child_tag == 'interfaceRealization' or self._obtener_attr(child, 'type') in ('uml:InterfaceRealization', 'InterfaceRealization'):
+                        target = child.attrib.get('contract') or child.attrib.get('supplier')
+                        if target:
+                            realizations.append((elem_id, target))
 
                     # ownedAttribute
                     elif child_tag == 'ownedAttribute':
@@ -313,11 +544,17 @@ class XMIImporter:
                                 'aggregation': child.attrib.get('aggregation', 'none'),
                                 'lower': lower_v,
                                 'upper': upper_v,
+                                'role': child.attrib.get('name', ''),
+                                'navigable': child.attrib.get('isNavigable') in ('true', '1'),
                             }
                             association_ends_by_assoc.setdefault(attr_assoc, []).append(end_info)
 
                         # Si tiene nombre real de columna, es un atributo de la entidad
                         if attr_name:
+                            nombre_normalizado, fk_target_name = parse_legacy_fk_attribute_name(attr_name)
+                            if fk_target_name is not None:
+                                atributos_fk_normalizados += 1
+
                             # Determinar tipo
                             tipo_str = None
                             for t_child in child:
@@ -358,16 +595,60 @@ class XMIImporter:
                             )
 
                             attrs_list.append({
-                                'nombre': attr_name,
+                                'nombre': nombre_normalizado,
                                 'tipo': self._mapear_tipo_dato(tipo_str),
+                                'tipo_ref_eaid': tipo_str if tipo_str and not str(tipo_str).startswith('EAJava_') else None,
+                                # Se conserva como metadato de importación. Las asociaciones
+                                # del XMI siguen siendo la autoridad de las relaciones UML.
+                                'fk_target_name': fk_target_name,
+                                'visibilidad': child.attrib.get('visibility', 'private'),
+                                'es_estatico': child.attrib.get('isStatic') in ('true', '1'),
+                                'valor_predeterminado': child.attrib.get('default', ''),
                                 'es_nulo': es_nulo,
                                 'es_clave': es_clave,
                             })
 
+                    elif child_tag == 'ownedOperation':
+                        parametros = []
+                        retorno_tipo = 'void'
+                        retorno_ref = None
+                        for param in child:
+                            if self._limpiar_tag(param) != 'ownedParameter':
+                                continue
+                            tipo_param = None
+                            for type_child in param:
+                                if self._limpiar_tag(type_child) == 'type':
+                                    tipo_param = self._obtener_attr(type_child, 'idref') or type_child.attrib.get('name')
+                            if param.attrib.get('direction') == 'return':
+                                retorno_tipo = self._mapear_tipo_dato(tipo_param) if tipo_param else 'void'
+                                retorno_ref = tipo_param if tipo_param and not str(tipo_param).startswith('EAJava_') else None
+                            else:
+                                parametros.append({'nombre': param.attrib.get('name') or 'parametro',
+                                    'tipo': self._mapear_tipo_dato(tipo_param),
+                                    'tipo_ref_eaid': tipo_param if tipo_param and not str(tipo_param).startswith('EAJava_') else None})
+                        operations_list.append({
+                            'nombre': child.attrib.get('name') or 'operacion',
+                            'visibilidad': child.attrib.get('visibility', 'public'),
+                            'tipo_retorno': retorno_tipo, 'retorno_ref_eaid': retorno_ref,
+                            'es_estatico': child.attrib.get('isStatic') in ('true', '1'),
+                            'es_abstracto': child.attrib.get('isAbstract') in ('true', '1'),
+                            'parametros': parametros,
+                        })
+
+                resolve_legacy_fk_name_collisions(attrs_list)
+                is_interface = 'Interface' in elem_type
+
                 raw_classes[elem_id] = {
                     'nombre': elem_name or f"Entidad_{elem_id[-6:]}",
                     'es_intermedia': is_assoc_class,
+                    'tipo_clasificador': (
+                        Entidad.TipoClasificador.INTERFAZ
+                        if is_interface
+                        else Entidad.TipoClasificador.CLASE
+                    ),
+                    'abstracto': elem.attrib.get('isAbstract') in ('true', '1') or is_interface,
                     'atributos': attrs_list,
+                    'operaciones': operations_list,
                 }
 
                 # Si es AssociationClass, registrarla también como asociación
@@ -418,6 +699,8 @@ class XMIImporter:
                             'aggregation': child.attrib.get('aggregation', 'none'),
                             'lower': lower_v,
                             'upper': upper_v,
+                            'role': child.attrib.get('name', ''),
+                            'navigable': child.attrib.get('isNavigable') in ('true', '1'),
                         })
 
         # Fusionar extremos externos hallados en ownedAttribute
@@ -500,10 +783,45 @@ class XMIImporter:
                 p['x'] = round(p['x'] + shift_x, 1)
                 p['y'] = round(p['y'] + shift_y, 1)
 
+        duplicate_classifiers_omitted = remove_hidden_duplicate_classifiers(
+            raw_classes,
+            raw_associations,
+            generalizations,
+            realizations,
+            ea_diagram_positions,
+        )
+
         # =========================================================================
         # PROCESAMIENTO EN DOS PASADAS (TWO-PASS PARSING)
         # =========================================================================
         with transaction.atomic():
+            preserved_keys: Dict[str, str] = {}
+            if reemplazar_existente:
+                existing_entities = list(
+                    self.proyecto.entidades.prefetch_related('atributos').all()
+                )
+                existing_name_counts = Counter(
+                    entity.nombre.casefold() for entity in existing_entities
+                )
+                for entity in existing_entities:
+                    if (
+                        entity.tipo_clasificador
+                        != Entidad.TipoClasificador.ENTIDAD_PERSISTENTE
+                        or existing_name_counts[entity.nombre.casefold()] != 1
+                    ):
+                        continue
+                    keys = [
+                        attribute for attribute in entity.atributos.all()
+                        if attribute.es_clave and attribute.tipo in SUPPORTED_JPA_KEY_TYPES
+                    ]
+                    if len(keys) == 1:
+                        preserved_keys[entity.nombre.casefold()] = keys[0].nombre.casefold()
+
+            persistence_metrics = prepare_imported_persistence(
+                raw_classes,
+                preserved_keys=preserved_keys,
+            )
+
             if reemplazar_existente:
                 self.proyecto.relaciones.all().delete()
                 self.proyecto.entidades.all().delete()
@@ -513,6 +831,9 @@ class XMIImporter:
             atributos_creados = 0
             relaciones_creadas = 0
             relaciones_creadas_objs: List[Relacion] = []
+            referencias_atributo = []
+            referencias_retorno = []
+            referencias_parametro = []
 
             # ---------------------------------------------------------------------
             # PASADA 1: Creación de Entidades y Atributos (Classes y AssociationClasses)
@@ -548,20 +869,55 @@ class XMIImporter:
                     coord_y=coord_y,
                     ancho=ancho,
                     es_intermedia=class_data['es_intermedia'],
+                    tipo_clasificador=class_data.get('tipo_clasificador', Entidad.TipoClasificador.CLASE),
+                    abstracto=class_data.get('abstracto', False),
                 )
                 eaid_to_entidad[eaid] = entidad
                 entidades_creadas += 1
 
                 for orden, attr_data in enumerate(class_data['atributos']):
-                    Atributo.objects.create(
+                    atributo = Atributo.objects.create(
                         entidad=entidad,
                         nombre=attr_data['nombre'],
                         tipo=attr_data['tipo'],
+                        visibilidad=attr_data.get('visibilidad', 'private'),
+                        es_estatico=attr_data.get('es_estatico', False),
+                        valor_predeterminado=attr_data.get('valor_predeterminado', ''),
                         es_clave=attr_data['es_clave'],
                         es_nulo=attr_data['es_nulo'],
                         orden=orden,
                     )
+                    if attr_data.get('tipo_ref_eaid'):
+                        referencias_atributo.append((atributo, attr_data['tipo_ref_eaid']))
                     atributos_creados += 1
+
+                for op_orden, op_data in enumerate(class_data.get('operaciones', [])):
+                    operacion = Operacion.objects.create(
+                        entidad=entidad, nombre=op_data['nombre'], visibilidad=op_data['visibilidad'],
+                        tipo_retorno=op_data['tipo_retorno'], orden=op_orden,
+                        es_estatico=op_data['es_estatico'], es_abstracto=op_data['es_abstracto'],
+                    )
+                    if op_data.get('retorno_ref_eaid'):
+                        referencias_retorno.append((operacion, op_data['retorno_ref_eaid']))
+                    for p_orden, p_data in enumerate(op_data.get('parametros', [])):
+                        parametro = ParametroOperacion.objects.create(
+                            operacion=operacion, nombre=p_data['nombre'], tipo=p_data['tipo'], orden=p_orden
+                        )
+                        if p_data.get('tipo_ref_eaid'):
+                            referencias_parametro.append((parametro, p_data['tipo_ref_eaid']))
+
+            for atributo, target_eaid in referencias_atributo:
+                if target_eaid in eaid_to_entidad:
+                    atributo.tipo_referencia = eaid_to_entidad[target_eaid]
+                    atributo.save(update_fields=['tipo_referencia'])
+            for operacion, target_eaid in referencias_retorno:
+                if target_eaid in eaid_to_entidad:
+                    operacion.retorno_referencia = eaid_to_entidad[target_eaid]
+                    operacion.save(update_fields=['retorno_referencia'])
+            for parametro, target_eaid in referencias_parametro:
+                if target_eaid in eaid_to_entidad:
+                    parametro.tipo_referencia = eaid_to_entidad[target_eaid]
+                    parametro.save(update_fields=['tipo_referencia'])
 
             # ---------------------------------------------------------------------
             # PASADA 2: Creación de Relaciones (uml:Association, AssociationClass y Herencia)
@@ -635,6 +991,10 @@ class XMIImporter:
                         cardinalidad_destino=card_dest,
                         puerto_origen=puerto_orig,
                         puerto_destino=puerto_dest,
+                        rol_origen=end_orig.get('role', ''),
+                        rol_destino=end_dest.get('role', ''),
+                        navegable_origen=end_orig.get('navigable', False),
+                        navegable_destino=end_dest.get('navigable', False),
                     )
                     relaciones_creadas_objs.append(rel_obj)
                     relaciones_creadas += 1
@@ -661,6 +1021,19 @@ class XMIImporter:
                     relaciones_creadas_objs.append(rel_herencia)
                     relaciones_creadas += 1
 
+            # C. Realizaciones de interfaces UML estándar
+            for client_eaid, contract_eaid in realizations:
+                if client_eaid in eaid_to_entidad and contract_eaid in eaid_to_entidad:
+                    client = eaid_to_entidad[client_eaid]
+                    contract = eaid_to_entidad[contract_eaid]
+                    puerto_client, puerto_contract = self._calcular_puertos_relacion(client, contract, uso_puertos)
+                    rel_impl = Relacion.objects.create(
+                        proyecto=self.proyecto, entidad_origen=client, entidad_destino=contract,
+                        tipo=Relacion.Tipo.IMPLEMENTACION, puerto_origen=puerto_client, puerto_destino=puerto_contract,
+                    )
+                    relaciones_creadas_objs.append(rel_impl)
+                    relaciones_creadas += 1
+
             # ---------------------------------------------------------------------
             # SNAPSHOT VISUAL: Actualizar datos_diagrama en Proyecto
             # ---------------------------------------------------------------------
@@ -677,16 +1050,35 @@ class XMIImporter:
                     'coord_y': e.coord_y,
                     'ancho': e.ancho,
                     'es_intermedia': e.es_intermedia,
+                    'tipo_clasificador': e.tipo_clasificador,
+                    'abstracto': e.abstracto,
                     'atributos': [
                         {
                             'id': a.id,
                             'nombre': a.nombre,
                             'tipo': a.tipo,
+                            'tipo_referencia_id': a.tipo_referencia_id,
+                            'visibilidad': a.visibilidad,
+                            'es_estatico': a.es_estatico,
+                            'valor_predeterminado': a.valor_predeterminado,
                             'es_clave': a.es_clave,
                             'es_nulo': a.es_nulo,
                             'orden': a.orden,
                         }
                         for a in e.atributos.all().order_by('orden', 'id')
+                    ],
+                    'operaciones': [
+                        {
+                            'id': o.id, 'nombre': o.nombre, 'visibilidad': o.visibilidad,
+                            'tipo_retorno': o.tipo_retorno, 'retorno_referencia_id': o.retorno_referencia_id,
+                            'orden': o.orden, 'es_estatico': o.es_estatico, 'es_abstracto': o.es_abstracto,
+                            'parametros': [
+                                {'id': p.id, 'nombre': p.nombre, 'tipo': p.tipo,
+                                 'tipo_referencia_id': p.tipo_referencia_id, 'orden': p.orden}
+                                for p in o.parametros.all().order_by('orden', 'id')
+                            ],
+                        }
+                        for o in e.operaciones.all().order_by('orden', 'id')
                     ]
                 }
                 for e in eaid_to_entidad.values()
@@ -703,6 +1095,10 @@ class XMIImporter:
                     'cardinalidad_destino': r.cardinalidad_destino,
                     'puerto_origen': r.puerto_origen,
                     'puerto_destino': r.puerto_destino,
+                    'rol_origen': r.rol_origen,
+                    'rol_destino': r.rol_destino,
+                    'navegable_origen': r.navegable_origen,
+                    'navegable_destino': r.navegable_destino,
                     'vertices': [],
                     'origen_bloqueado': False,
                     'destino_bloqueado': (r.tipo == Relacion.Tipo.COMPOSICION),
@@ -721,4 +1117,7 @@ class XMIImporter:
             'entidades_creadas': entidades_creadas,
             'atributos_creados': atributos_creados,
             'relaciones_creadas': relaciones_creadas,
+            'atributos_fk_normalizados': atributos_fk_normalizados,
+            'clasificadores_duplicados_omitidos': duplicate_classifiers_omitted,
+            **persistence_metrics,
         }
