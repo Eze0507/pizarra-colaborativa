@@ -62,3 +62,18 @@ async def notificar_evento_proyecto_async(proyecto_id: int | str, tipo_evento: s
             "data": payload
         })
     )
+
+
+def notificar_revocacion_acceso_sync(proyecto_id: int | str, usuario_id: int):
+    """Ordena cerrar las conexiones activas del colaborador retirado."""
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+    async_to_sync(channel_layer.group_send)(
+        get_proyecto_group_name(proyecto_id),
+        {
+            "type": "access.revoked",
+            "usuario_id": usuario_id,
+            "proyecto_id": proyecto_id,
+        },
+    )

@@ -104,6 +104,12 @@ export class WhiteboardCanvasService {
     return !!this.paper && !!this.graph;
   }
 
+  public setSoloLectura(soloLectura: boolean): void {
+    if (this.paper) {
+      this.paper.options.interactive = soloLectura ? false : { linkMove: false };
+    }
+  }
+
   // ── Inicialización y Destrucción ────────────────────────────────────────
 
   public inicializar(container: HTMLElement): void {
@@ -212,6 +218,23 @@ export class WhiteboardCanvasService {
     }
     this.relationshipService.limpiar();
     this.entityService.limpiar();
+  }
+
+  public enfocarObjetivo(tipo: 'clasificador' | 'relacion', id: number): boolean {
+    if (!this.paper || !this.lienzoContainer) return false;
+    const celda = tipo === 'clasificador'
+      ? this.entityService.getCelda(id)
+      : this.relationshipService.getLinkRelacion(id);
+    if (!celda) return false;
+
+    const centro = celda.getBBox().center();
+    const escala = this.paper.scale().sx || 1;
+    const rect = this.lienzoContainer.getBoundingClientRect();
+    this.paper.translate(
+      rect.width / 2 - centro.x * escala,
+      rect.height / 2 - centro.y * escala
+    );
+    return true;
   }
 
   public destruir(): void {
@@ -397,14 +420,16 @@ export class WhiteboardCanvasService {
     relacionId: number,
     nombre: string,
     cardinalidadOrigen: string,
-    cardinalidadDestino: string
+    cardinalidadDestino: string,
+    propiedades?: Partial<Pick<RelacionDiagrama, 'tipo' | 'rol_origen' | 'rol_destino' | 'navegable_origen' | 'navegable_destino'>>
   ): RelacionDiagrama | null {
     return this.relationshipService.actualizarPropiedadesRelacion(
       relacionId,
       nombre,
       cardinalidadOrigen,
       cardinalidadDestino,
-      this.modoOscuro
+      this.modoOscuro,
+      propiedades
     );
   }
 
@@ -441,11 +466,12 @@ export class WhiteboardCanvasService {
 
   public actualizarIdsSincronizados(
     idMap?: Record<string | number, number>,
-    relIdMap?: Record<string | number, number>
+    relIdMap?: Record<string | number, number>,
+    attrIdMap?: Record<string | number, number>,
+    operationIdMap?: Record<string | number, number>,
+    parameterIdMap?: Record<string | number, number>
   ): void {
-    if (idMap && Object.keys(idMap).length > 0) {
-      this.entityService.remapIds(idMap);
-    }
+    this.entityService.remapIds(idMap, attrIdMap, operationIdMap, parameterIdMap);
     if ((idMap && Object.keys(idMap).length > 0) || (relIdMap && Object.keys(relIdMap).length > 0)) {
       this.relationshipService.remapIds(idMap, relIdMap);
     }

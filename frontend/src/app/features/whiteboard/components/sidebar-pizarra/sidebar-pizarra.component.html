@@ -189,6 +189,55 @@
           </div>
 
         </div>
+
+        <section class="validation-panel" aria-labelledby="validation-title">
+          <div class="validation-heading">
+            <div>
+              <span id="validation-title" class="toolbox-label">VALIDACIÓN DEL MODELO</span>
+              <span class="toolbox-sub">Fuente canónica: modelo guardado</span>
+            </div>
+            <span *ngIf="resultadoValidacion" class="validation-origin">ORM</span>
+          </div>
+
+          <div class="validation-controls">
+            <select [(ngModel)]="perfilValidacion" aria-label="Perfil de validación">
+              <option value="uml">UML</option>
+              <option value="java">Java</option>
+              <option value="jpa">JPA</option>
+            </select>
+            <button type="button" (click)="ejecutarValidacion()" [disabled]="!puedeValidar">
+              {{ validandoModelo ? 'Validando…' : 'Validar' }}
+            </button>
+          </div>
+
+          <p *ngIf="!puedeValidar && !validandoModelo" class="validation-hint">
+            El diagrama debe estar conectado y guardado.
+          </p>
+          <p *ngIf="errorValidacion" class="validation-error">{{ errorValidacion }}</p>
+
+          <ng-container *ngIf="resultadoValidacion as resultado">
+            <div class="validation-summary" [class.validation-ok]="resultado.valido">
+              <strong>{{ resultado.valido ? 'Modelo válido' : 'Modelo con errores' }}</strong>
+              <span>{{ resultado.resumen.errores }} errores · {{ resultado.resumen.advertencias }} advertencias · {{ resultado.resumen.informativos }} informativos</span>
+            </div>
+            <div class="validation-findings" *ngIf="resultado.hallazgos.length; else sinHallazgos">
+              <button
+                type="button"
+                class="validation-finding"
+                *ngFor="let hallazgo of resultado.hallazgos"
+                [attr.data-severity]="hallazgo.severidad"
+                (click)="localizarHallazgo.emit(hallazgo)"
+                [title]="'Localizar ' + hallazgo.codigo"
+              >
+                <span class="finding-code">{{ hallazgo.codigo }}</span>
+                <span>{{ hallazgo.mensaje }}</span>
+              </button>
+            </div>
+            <ng-template #sinHallazgos>
+              <p class="validation-empty">No se encontraron hallazgos.</p>
+            </ng-template>
+          </ng-container>
+        </section>
       </div>
 
       <!-- Contenido: Pestaña Asistente Virtual IA (Boceto a Diagrama) -->
@@ -297,6 +346,26 @@
 
     <!-- ── 3. PIE DEL SIDEBAR (Acciones Globales) ── -->
     <footer class="sidebar-footer">
+
+      <button
+        type="button"
+        class="btn-cta-estrella"
+        (click)="generarCodigo.emit()"
+        title="Generar y descargar un proyecto Spring Boot desde el diagrama confirmado"
+      >
+        <span class="cta-content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 18l6-6-6-6"></path>
+            <path d="M8 6l-6 6 6 6"></path>
+            <path d="M14.5 4l-5 16"></path>
+          </svg>
+          <span class="cta-text-group">
+            <span class="cta-principal">Generación Java</span>
+            <span class="cta-secundario">Spring Boot</span>
+          </span>
+        </span>
+        <span class="badge-fase-estrella">ZIP</span>
+      </button>
       
       <!-- Botón Secundario: Exportar XML (Enterprise Architect) -->
       <button 

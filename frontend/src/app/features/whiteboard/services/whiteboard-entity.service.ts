@@ -3,6 +3,7 @@ import * as joint from '@joint/core';
 
 import { EntidadDiagrama } from '../interfaces/diagrama.interface';
 import { TemaColores, PosicionEditor } from '../interfaces/whiteboard-ui.interface';
+import { etiquetaAtributo, etiquetaOperacion } from '../utils/uml-contract.utils';
 
 const ALTO_HEADER         = 36;
 const ALTO_ATRIBUTO       = 24;
@@ -57,7 +58,8 @@ export class WhiteboardEntityService {
     const PADDING_HORIZONTAL = 36;
 
     const tieneNombre = entidad.nombre && entidad.nombre.trim().length > 0;
-    const textoNombre = tieneNombre ? entidad.nombre.trim() : '— nombre entidad —';
+    const estereotipo = entidad.tipo_clasificador === 'interfaz' ? '«interface» ' : entidad.tipo_clasificador === 'entidad_persistente' ? '«entity» ' : '';
+    const textoNombre = estereotipo + (tieneNombre ? entidad.nombre.trim() : '— nombre entidad —');
     const anchoNombre = this.medirAnchoTexto(textoNombre, '700 13px "JetBrains Mono", monospace') + PADDING_HORIZONTAL + 20;
 
     const anchoBoton = this.medirAnchoTexto('+ Agregar atributo', '400 11px "JetBrains Mono", monospace') + PADDING_HORIZONTAL;
@@ -91,8 +93,8 @@ export class WhiteboardEntityService {
 
     const ancho = this.calcularAnchoDinamico(entidad);
     entidad.ancho = ancho;
-    const numAtributos = entidad.atributos?.length ?? 0;
-    const alto = ALTO_HEADER + (numAtributos * ALTO_ATRIBUTO) + ALTO_BOTON_AGREGAR + 14;
+    const numLineas = (entidad.atributos?.length ?? 0) + (entidad.operaciones?.length ?? 0) + 1;
+    const alto = ALTO_HEADER + (numLineas * ALTO_ATRIBUTO) + ALTO_BOTON_AGREGAR + 14;
 
 const PUERTOS_ITEMS = [
   // 3 puertos en el borde superior
@@ -227,27 +229,33 @@ function generarGruposPuertos(tema: TemaColores) {
 
     const ancho = this.calcularAnchoDinamico(entidad);
     entidad.ancho = ancho;
-    const numAtributos = entidad.atributos?.length ?? 0;
-    const alto = ALTO_HEADER + (numAtributos * ALTO_ATRIBUTO) + ALTO_BOTON_AGREGAR + 14;
+    const numLineas = (entidad.atributos?.length ?? 0) + (entidad.operaciones?.length ?? 0) + 1;
+    const alto = ALTO_HEADER + (numLineas * ALTO_ATRIBUTO) + ALTO_BOTON_AGREGAR + 14;
 
     celda.resize(ancho, alto);
 
     const tieneNombre = entidad.nombre && entidad.nombre.trim().length > 0;
-    const textoNombre = tieneNombre ? entidad.nombre.trim() : '— nombre entidad —';
+    const estereotipoVisual = entidad.tipo_clasificador === 'interfaz' ? '«interface» ' : entidad.tipo_clasificador === 'entidad_persistente' ? '«entity» ' : '';
+    const textoNombre = estereotipoVisual + (tieneNombre ? entidad.nombre.trim() : '— nombre entidad —');
     const colorNombre = tieneNombre ? tema.headerTexto : 'rgba(128,128,128,0.5)';
 
     celda.attr('headerText/text', textoNombre);
     celda.attr('headerText/fill', colorNombre);
+    celda.attr('headerText/fontStyle', entidad.abstracto ? 'italic' : 'normal');
 
     const lineas: string[] = [];
 
     if (entidad.atributos && entidad.atributos.length > 0) {
       const ordenados = [...entidad.atributos].sort((a, b) => a.orden - b.orden);
       ordenados.forEach(attr => {
-        const nombreLimpio = attr.nombre.replace(/^[-+~#]\s*/, '').replace(/\[\s*\]/g, '').trim();
-        const pk = attr.es_clave ? '[PK] ' : '     ';
-        lineas.push(`${pk}- ${nombreLimpio} : ${attr.tipo}`);
+        lineas.push(etiquetaAtributo(attr, this.entidadesMap));
       });
+    }
+
+    if (entidad.operaciones?.length) {
+      lineas.push('──────── operaciones ────────');
+      [...entidad.operaciones].sort((a, b) => a.orden - b.orden)
+        .forEach(op => lineas.push(etiquetaOperacion(op, this.entidadesMap)));
     }
 
     lineas.push('+ Agregar atributo');
@@ -283,7 +291,7 @@ function generarGruposPuertos(tema: TemaColores) {
   public renderizarEntidades(entidades: EntidadDiagrama[], tema: TemaColores): void {
     this.limpiar();
     entidades.forEach(e => {
-      this.entidadesMap.set(e.id, { ...e, atributos: e.atributos ? [...e.atributos] : [] });
+      this.entidadesMap.set(e.id, { ...e, atributos: (e.atributos || []).map(a => ({...a})), operaciones: (e.operaciones || []).map(o => ({...o, parametros: (o.parametros || []).map(p => ({...p}))})) });
       this.crearCelda(e, tema);
     });
   }
@@ -298,7 +306,10 @@ function generarGruposPuertos(tema: TemaColores) {
       coord_y: coordY,
       ancho,
       es_intermedia: false,
-      atributos: []
+      tipo_clasificador: 'clase',
+      abstracto: false,
+      atributos: [],
+      operaciones: []
     };
     this.entidadesMap.set(entidadLocal.id, entidadLocal);
     this.crearCelda(entidadLocal, tema);
@@ -337,7 +348,8 @@ function generarGruposPuertos(tema: TemaColores) {
     }
     const copia: EntidadDiagrama = {
       ...entidad,
-      atributos: entidad.atributos ? [...entidad.atributos] : []
+      atributos: (entidad.atributos || []).map(a => ({...a})),
+      operaciones: (entidad.operaciones || []).map(o => ({...o, parametros: (o.parametros || []).map(p => ({...p}))}))
     };
     this.entidadesMap.set(copia.id, copia);
     this.crearCelda(copia, tema);
@@ -351,7 +363,10 @@ function generarGruposPuertos(tema: TemaColores) {
       return;
     }
     existente.nombre = entidad.nombre;
-    existente.atributos = entidad.atributos ? [...entidad.atributos] : [];
+    existente.tipo_clasificador = entidad.tipo_clasificador ?? existente.tipo_clasificador ?? 'clase';
+    existente.abstracto = entidad.abstracto ?? existente.abstracto ?? false;
+    existente.atributos = entidad.atributos ? entidad.atributos.map(a => ({...a})) : existente.atributos;
+    existente.operaciones = entidad.operaciones ? entidad.operaciones.map(o => ({...o, parametros: (o.parametros || []).map(p => ({...p}))})) : existente.operaciones;
     existente.ancho = entidad.ancho;
     existente.coord_x = Number(entidad.coord_x);
     existente.coord_y = Number(entidad.coord_y);
@@ -503,13 +518,23 @@ function generarGruposPuertos(tema: TemaColores) {
         coord_y: Math.round(pos.y),
         ancho: ent.ancho,
         es_intermedia: ent.es_intermedia ?? false,
-        atributos: ent.atributos ? ent.atributos.map(a => ({ ...a })) : []
+        atributos: ent.atributos ? ent.atributos.map(a => ({ ...a })) : [],
+        operaciones: (ent.operaciones || []).map(o => ({ ...o, parametros: (o.parametros || []).map(p => ({...p})) }))
       });
     });
     return lista;
   }
 
-  public remapIds(idMap?: Record<string | number, number>): void {
+  public remapIds(idMap?: Record<string | number, number>, attrIdMap?: Record<string | number, number>, operationIdMap?: Record<string | number, number>, parameterIdMap?: Record<string | number, number>): void {
+    if (!idMap && !attrIdMap && !operationIdMap && !parameterIdMap) return;
+    this.entidadesMap.forEach(entidad => {
+      entidad.atributos = (entidad.atributos || []).map(a => ({ ...a, id: attrIdMap?.[a.id] ?? a.id,
+        tipo_referencia_id: a.tipo_referencia_id == null ? a.tipo_referencia_id : (idMap?.[a.tipo_referencia_id] ?? a.tipo_referencia_id) }));
+      entidad.operaciones = (entidad.operaciones || []).map(o => ({ ...o, id: operationIdMap?.[o.id] ?? o.id,
+        retorno_referencia_id: o.retorno_referencia_id == null ? o.retorno_referencia_id : (idMap?.[o.retorno_referencia_id] ?? o.retorno_referencia_id),
+        parametros: (o.parametros || []).map(p => ({ ...p, id: parameterIdMap?.[p.id] ?? p.id,
+          tipo_referencia_id: p.tipo_referencia_id == null ? p.tipo_referencia_id : (idMap?.[p.tipo_referencia_id] ?? p.tipo_referencia_id) })) }));
+    });
     if (!idMap) return;
     for (const [oldIdStr, newId] of Object.entries(idMap)) {
       const oldId = Number(oldIdStr);

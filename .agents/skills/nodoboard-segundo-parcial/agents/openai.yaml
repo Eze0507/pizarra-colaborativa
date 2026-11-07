@@ -1,0 +1,4 @@
+interface:
+  display_name: "NodoBoard Segundo Parcial"
+  short_description: "Implementa el parcial por requisitos verificables y etapas"
+  default_prompt: "Usa $nodoboard-segundo-parcial para trabajar una tarea concreta del plan y verificar su procedencia y criterios de aceptación."

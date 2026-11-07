@@ -19,6 +19,12 @@
     </button>
   </div>
 
+  <div *ngIf="conflictoRevision" class="revision-conflict" role="alert">
+    <strong>El diagrama cambió en otro cliente.</strong>
+    <span>Se conservaron tus cambios locales y se suspendió el autoguardado.</span>
+    <button type="button" (click)="onRecargarTrasConflicto()">Recuperar estado remoto</button>
+  </div>
+
   <!-- Barra lateral de la pizarra -->
   <app-sidebar-pizarra
     [proyecto]="proyecto"
@@ -39,6 +45,7 @@
     (volverDashboard)="onVolverDashboard()"
     (toggleTema)="onToggleTema()"
     (diagramaIAGenerado)="onDiagramaIAGenerado($event)"
+    (localizarHallazgo)="onLocalizarHallazgo($event)"
   >
   </app-sidebar-pizarra>
 
@@ -89,6 +96,7 @@
 
     <!-- Botón Flotante y Panel de Asistente IA (Chat y Voz) -->
     <app-chat-asistente-ia
+      *ngIf="puedeEditar"
       [contextoDiagrama]="obtenerContextoDiagramaParaIA()"
       [modoOscuro]="modoOscuro"
       (ejecutarDeltaIA)="onEjecutarDeltaIA($event)"
@@ -107,6 +115,7 @@
     <app-modal-propiedades-entidad
       [visible]="modalEntidadActivo"
       [entidad]="entidadEditando"
+      [clasificadores]="canvasService.getEntidades()"
       (guardar)="onGuardarPropiedadesEntidad($event)"
       (cancelar)="onCancelarModalEntidad()"
     >
@@ -133,6 +142,21 @@
       (cerrar)="onCerrarColaboradores()"
     >
     </app-modal-colaboradores>
+
+    <app-modal-generacion-spring
+      [visible]="modalGeneracionActivo"
+      [generando]="generandoSpring"
+      [puedeGenerar]="puedeGenerarSpring"
+      [puedeGuardar]="puedeEditar && estadoGuardado === 'error' && !conflictoRevision && estadoConexion === 'conectado'"
+      [motivoBloqueo]="motivoBloqueoGeneracion"
+      [nombreInicial]="nombreInicialGeneracion"
+      [paqueteInicial]="paqueteInicialGeneracion"
+      [errorServidor]="errorGeneracionSpring"
+      (cerrar)="onCerrarGeneracion()"
+      (guardar)="onGuardarAntesDeGenerar()"
+      (generar)="onSolicitarGeneracion($event)"
+    >
+    </app-modal-generacion-spring>
 
     <!-- Notificaciones Toast Flotantes -->
     <app-toast-container></app-toast-container>

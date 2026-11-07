@@ -133,6 +133,10 @@ export class WhiteboardRelationshipService {
     return null;
   }
 
+  public getLinkRelacion(relacionId: number): joint.dia.Link | undefined {
+    return this.linksRelaciones.get(relacionId);
+  }
+
   public obtenerDireccionPuerto(puertoId?: string | null): 'top' | 'bottom' | 'left' | 'right' | null {
     if (!puertoId) return null;
     if (puertoId.startsWith('top')) return 'top';
@@ -263,6 +267,21 @@ export class WhiteboardRelationshipService {
           strokeWidth: 1.8
         });
         break;
+      case 'implementacion':
+        link.attr('line/strokeDasharray', '7 5');
+        link.attr('line/sourceMarker', { type: 'none' });
+        link.attr('line/targetMarker', {
+          type: 'path', d: 'M 14 -8 0 0 14 8 z', fill: colorFondo,
+          stroke: colorLinea, strokeWidth: 1.8
+        });
+        break;
+    }
+
+    const relacion = Array.from(this.relacionesMap.values()).find(r => this.linksRelaciones.get(r.id) === link);
+    if (relacion && tipo !== 'herencia' && tipo !== 'implementacion') {
+      const flecha = { type: 'path', d: 'M 10 -5 0 0 10 5', fill: 'none', stroke: colorLinea, strokeWidth: 1.6 };
+      if (relacion.navegable_origen) link.attr('line/sourceMarker', flecha);
+      if (relacion.navegable_destino) link.attr('line/targetMarker', flecha);
     }
   }
 
@@ -618,11 +637,11 @@ export class WhiteboardRelationshipService {
       connector: { name: 'rounded', args: { radius: 8 } }
     });
 
-    this.aplicarEstiloRelacion(link, relacion.tipo, modoOscuro, !!relacion.clase_asociacion_id);
-    this.actualizarEtiquetasCardinalidad(link, relacion, modoOscuro);
     this.graph.addCell(link);
     this.linksRelaciones.set(relacion.id, link);
     this.relacionesMap.set(relacion.id, relacion);
+    this.aplicarEstiloRelacion(link, relacion.tipo, modoOscuro, !!relacion.clase_asociacion_id);
+    this.actualizarEtiquetasCardinalidad(link, relacion, modoOscuro);
 
     if (relacion.clase_asociacion_id) {
       this.crearConectorClaseAsociacion(relacion.id, relacion.clase_asociacion_id, modoOscuro);
@@ -660,6 +679,11 @@ export class WhiteboardRelationshipService {
       if (relacion.puerto_destino !== undefined) existente.puerto_destino = relacion.puerto_destino;
       if (relacion.entidad_origen_id !== undefined) existente.entidad_origen_id = relacion.entidad_origen_id;
       if (relacion.entidad_destino_id !== undefined) existente.entidad_destino_id = relacion.entidad_destino_id;
+      if (relacion.tipo !== undefined) existente.tipo = relacion.tipo;
+      if (relacion.rol_origen !== undefined) existente.rol_origen = relacion.rol_origen;
+      if (relacion.rol_destino !== undefined) existente.rol_destino = relacion.rol_destino;
+      if (relacion.navegable_origen !== undefined) existente.navegable_origen = relacion.navegable_origen;
+      if (relacion.navegable_destino !== undefined) existente.navegable_destino = relacion.navegable_destino;
     }
     const link = this.linksRelaciones.get(numId);
     if (link) {
@@ -698,6 +722,7 @@ export class WhiteboardRelationshipService {
       link.router('manhattan', this.obtenerOpcionesRouterManhattan(esAutoreferencia, puertoOrigen, puertoDestino));
 
       this.actualizarEtiquetasCardinalidad(link, existente || relacion, modoOscuro);
+      this.aplicarEstiloRelacion(link, (existente || relacion).tipo, modoOscuro, !!(existente || relacion).clase_asociacion_id);
 
       const claseAsocId = existente?.clase_asociacion_id ?? relacion.clase_asociacion_id;
       if (claseAsocId) {
@@ -934,7 +959,7 @@ export class WhiteboardRelationshipService {
 
     const labels: joint.dia.Link.Label[] = [];
 
-    if (cardOrigen !== '') {
+    if (cardOrigen !== '' || !!relacion.rol_origen) {
       const esOrigBloqueado = this.esOrigenBloqueado(relacion);
       const esOrigenSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'origen';
       const origenClases = 'capsula-cardinalidad capsula-origen' +
@@ -958,7 +983,7 @@ export class WhiteboardRelationshipService {
             cursor: esOrigBloqueado ? 'not-allowed' : 'pointer'
           },
           text: {
-            text: cardOrigen,
+            text: [relacion.rol_origen, cardOrigen].filter(Boolean).join(' '),
             fill: esOrigenSel ? '#00A3FF' : (esOrigBloqueado ? textoColorBloqueado : textoColorNormal),
             fontSize: 11,
             fontFamily: '"JetBrains Mono", monospace',
@@ -972,7 +997,7 @@ export class WhiteboardRelationshipService {
       });
     }
 
-    if (cardDestino !== '') {
+    if (cardDestino !== '' || !!relacion.rol_destino) {
       const esDestBloqueado = this.esDestinoBloqueado(relacion);
       const esDestinoSel = this.capsulaSeleccionada?.relacionId === relacion.id && this.capsulaSeleccionada?.extremo === 'destino';
       const destinoClases = 'capsula-cardinalidad capsula-destino' +
@@ -996,7 +1021,7 @@ export class WhiteboardRelationshipService {
             cursor: esDestBloqueado ? 'not-allowed' : 'pointer'
           },
           text: {
-            text: cardDestino,
+            text: [cardDestino, relacion.rol_destino].filter(Boolean).join(' '),
             fill: esDestinoSel ? '#00A3FF' : (esDestBloqueado ? textoColorBloqueado : textoColorNormal),
             fontSize: 11,
             fontFamily: '"JetBrains Mono", monospace',
@@ -1177,12 +1202,14 @@ export class WhiteboardRelationshipService {
     nombre: string,
     cardinalidadOrigen: string,
     cardinalidadDestino: string,
-    modoOscuro: boolean
+    modoOscuro: boolean,
+    propiedades?: Partial<Pick<RelacionDiagrama, 'tipo' | 'rol_origen' | 'rol_destino' | 'navegable_origen' | 'navegable_destino'>>
   ): RelacionDiagrama | null {
     const rel = this.relacionesMap.get(relacionId);
     const link = this.linksRelaciones.get(relacionId);
     if (rel && link) {
       rel.nombre_relacion = nombre;
+      Object.assign(rel, propiedades || {});
       rel.cardinalidad_origen = cardinalidadOrigen;
       if (!this.esDestinoBloqueado(rel)) {
         rel.cardinalidad_destino = cardinalidadDestino;
@@ -1191,6 +1218,7 @@ export class WhiteboardRelationshipService {
       }
       rel.vertices = [];
       this.deseleccionarCapsula(modoOscuro);
+      this.aplicarEstiloRelacion(link, rel.tipo, modoOscuro, !!rel.clase_asociacion_id);
       this.actualizarEtiquetasCardinalidad(link, rel, modoOscuro);
       return { ...rel, vertices: [] };
     }
@@ -1284,6 +1312,10 @@ export class WhiteboardRelationshipService {
       for (const [oldRelIdStr, newRelId] of Object.entries(relIdMap)) {
         const oldRelId = Number(oldRelIdStr);
         if (oldRelId === newRelId) continue;
+
+        if (this.capsulaSeleccionada?.relacionId === oldRelId) {
+          this.capsulaSeleccionada.relacionId = newRelId;
+        }
 
         const rel = this.relacionesMap.get(oldRelId);
         if (rel) {

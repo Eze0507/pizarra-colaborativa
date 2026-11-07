@@ -5,7 +5,7 @@ from django.core.mail import send_mail
 from rest_framework import serializers
 from core.utils import get_frontend_url
 
-from .models import Proyecto, Entidad, Atributo, Relacion
+from .models import Proyecto, Entidad, Atributo, Operacion, ParametroOperacion, Relacion
 from usuario.models import UserColaborador
 
 
@@ -46,12 +46,14 @@ class ProyectoDetailSerializer(serializers.ModelSerializer):
             'descripcion',
             'paquete_base',
             'datos_diagrama',
+            'revision',
             'fecha_creacion',
             'fecha_actualizacion',
             'propietario',
             'colaboradores_detalle',
             'es_propietario',
         )
+        read_only_fields = ('datos_diagrama', 'revision')
 
     def get_es_propietario(self, obj):
         request = self.context.get('request')
@@ -75,11 +77,12 @@ class ProyectoCreateSerializer(serializers.ModelSerializer):
             'nombre',
             'descripcion',
             'paquete_base',
+            'revision',
             'fecha_creacion',
             'fecha_actualizacion',
             'propietario',
         )
-        read_only_fields = ('id', 'codigo', 'paquete_base', 'fecha_creacion', 'fecha_actualizacion', 'propietario')
+        read_only_fields = ('id', 'codigo', 'paquete_base', 'revision', 'fecha_creacion', 'fecha_actualizacion', 'propietario')
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -270,7 +273,27 @@ class AtributoDiagramaSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Atributo
-        fields = ('id', 'nombre', 'tipo', 'es_clave', 'es_nulo', 'orden')
+        fields = (
+            'id', 'nombre', 'tipo', 'tipo_referencia_id', 'visibilidad',
+            'es_estatico', 'es_clave', 'es_nulo', 'valor_predeterminado', 'orden'
+        )
+
+
+class ParametroOperacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ParametroOperacion
+        fields = ('id', 'nombre', 'tipo', 'tipo_referencia_id', 'orden')
+
+
+class OperacionDiagramaSerializer(serializers.ModelSerializer):
+    parametros = ParametroOperacionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Operacion
+        fields = (
+            'id', 'nombre', 'visibilidad', 'tipo_retorno', 'retorno_referencia_id',
+            'orden', 'es_estatico', 'es_abstracto', 'parametros'
+        )
 
 
 class EntidadDiagramaSerializer(serializers.ModelSerializer):
@@ -279,10 +302,14 @@ class EntidadDiagramaSerializer(serializers.ModelSerializer):
     No incluye 'alto' ya que este se calcula dinámicamente en el frontend según sus atributos.
     """
     atributos = AtributoDiagramaSerializer(many=True, read_only=True)
+    operaciones = OperacionDiagramaSerializer(many=True, read_only=True)
 
     class Meta:
         model = Entidad
-        fields = ('id', 'nombre', 'estado', 'coord_x', 'coord_y', 'ancho', 'es_intermedia', 'atributos')
+        fields = (
+            'id', 'nombre', 'estado', 'coord_x', 'coord_y', 'ancho',
+            'es_intermedia', 'tipo_clasificador', 'abstracto', 'atributos', 'operaciones'
+        )
 
 
 class RelacionDiagramaSerializer(serializers.ModelSerializer):
@@ -305,7 +332,11 @@ class RelacionDiagramaSerializer(serializers.ModelSerializer):
             'cardinalidad_origen',
             'cardinalidad_destino',
             'puerto_origen',
-            'puerto_destino'
+            'puerto_destino',
+            'rol_origen',
+            'rol_destino',
+            'navegable_origen',
+            'navegable_destino'
         )
 
 

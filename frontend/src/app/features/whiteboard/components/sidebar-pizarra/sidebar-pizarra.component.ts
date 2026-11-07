@@ -21,6 +21,13 @@ import {
 } from '../../interfaces/asistente-ia.interface';
 import { AsistenteIaService } from '../../services/asistente-ia.service';
 import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
+import { WhiteboardApiService } from '../../services/whiteboard-api.service';
+import {
+  HallazgoValidacion,
+  PerfilValidacion,
+  ResultadoValidacion
+} from '../../interfaces/validation.interface';
+import { puedeValidarModelo } from '../../utils/validation.utils';
 
 export type PestanaSidebar = 'toolbox' | 'ia';
 
@@ -34,6 +41,7 @@ export type PestanaSidebar = 'toolbox' | 'ia';
 export class SidebarPizarraComponent implements OnInit, OnChanges {
   private readonly asistenteIaService = inject(AsistenteIaService);
   private readonly toastService = inject(ToastNotificationService);
+  private readonly apiService = inject(WhiteboardApiService);
 
   @Input() public proyecto: ProyectoDiagrama | null = null;
   @Input() public estadoConexion: EstadoConexion = 'desconectado';
@@ -52,6 +60,7 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
 
   // Asistente IA (Boceto a Diagrama)
   @Output() public readonly diagramaIAGenerado = new EventEmitter<DiagramaGeneradoPayload>();
+  @Output() public readonly localizarHallazgo = new EventEmitter<HallazgoValidacion>();
 
   // Acciones globales del pie
   @Output() public readonly generarCodigo = new EventEmitter<void>();
@@ -76,6 +85,11 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
   public mensajeEstadoIa = '';
   public errorIa: string | null = null;
   public arrastrandoArchivo = false;
+
+  public perfilValidacion: PerfilValidacion = 'uml';
+  public resultadoValidacion: ResultadoValidacion | null = null;
+  public validandoModelo = false;
+  public errorValidacion: string | null = null;
 
   public ngOnInit(): void {
     if (this.proyecto?.nombre) {
@@ -290,6 +304,36 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
       default:
         return 'Guardado';
     }
+  }
+
+  public get puedeValidar(): boolean {
+    return puedeValidarModelo(
+      this.proyecto?.id,
+      this.estadoConexion,
+      this.estadoGuardado,
+      this.validandoModelo
+    );
+  }
+
+  public ejecutarValidacion(): void {
+    if (!this.puedeValidar || !this.proyecto) {
+      this.errorValidacion = 'Guarda y sincroniza el diagrama antes de validarlo.';
+      return;
+    }
+    this.validandoModelo = true;
+    this.errorValidacion = null;
+    this.apiService.validarProyecto(this.proyecto.id, this.perfilValidacion).subscribe({
+      next: resultado => {
+        this.resultadoValidacion = resultado;
+        this.validandoModelo = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.validandoModelo = false;
+        this.errorValidacion = err.status === 403
+          ? 'No tienes permiso para validar este proyecto.'
+          : (err.error?.detail || 'No se pudo validar el modelo.');
+      }
+    });
   }
 
   public onSeleccionarArchivoXml(evento: Event): void {

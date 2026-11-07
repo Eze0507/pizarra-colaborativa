@@ -1,0 +1,22 @@
+.spring-modal-backdrop { position: fixed; inset: 0; z-index: 1800; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .62); }
+.spring-modal { width: min(560px, 100%); max-height: calc(100vh - 40px); overflow: auto; border-radius: 14px; background: #fff; color: #172033; box-shadow: 0 24px 70px rgba(0,0,0,.32); }
+header, footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; }
+header { border-bottom: 1px solid #e2e8f0; }
+header h2 { margin: 0 0 4px; font-size: 20px; }
+header p { margin: 0; color: #64748b; font-size: 13px; }
+.close { border: 0; background: transparent; font-size: 28px; cursor: pointer; }
+.spring-form { display: grid; gap: 8px; padding: 20px 22px; }
+.spring-form > label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+input[type='text'], input:not([type]) { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+fieldset { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 10px 0 0; padding: 14px; border: 1px solid #cbd5e1; border-radius: 9px; }
+fieldset label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.field-error, .server-error { color: #b91c1c; }
+.option-message { color: #0369a1; }
+.blocked { margin-top: 8px; padding: 11px; border-radius: 8px; background: #fff7ed; color: #9a3412; font-size: 13px; }
+.blocked button { margin-left: 8px; }
+footer { border-top: 1px solid #e2e8f0; justify-content: flex-end; }
+footer button { padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.secondary { border: 1px solid #cbd5e1; background: #fff; }
+.primary { border: 1px solid #0284c7; background: #0284c7; color: #fff; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+@media (max-width: 520px) { fieldset { grid-template-columns: 1fr; } }

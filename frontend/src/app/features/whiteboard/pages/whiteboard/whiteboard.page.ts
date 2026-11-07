@@ -23,7 +23,18 @@ import { WhiteboardCameraService } from '../../services/whiteboard-camera.servic
 import { DiagramaParserService } from '../../services/diagrama-parser.service';
 import { AsistenteIaService } from '../../services/asistente-ia.service';
 import { GeneradorService } from '../../services/generador.service';
-import { RespuestaImportacionXML } from '../../interfaces/generador.interface';
+import {
+  RespuestaImportacionXML,
+  SolicitudGeneracionSpring
+} from '../../interfaces/generador.interface';
+import { HallazgoValidacion } from '../../interfaces/validation.interface';
+import { objetivoVisible } from '../../utils/validation.utils';
+import {
+  motivoBloqueoSpring,
+  normalizarNombreProyectoSpring,
+  puedeExportarSpring,
+  puedeGenerarSpring
+} from '../../utils/spring-generation.utils';
 
 import { SidebarPizarraComponent } from '../../components/sidebar-pizarra/sidebar-pizarra.component';
 import { ControlesZoomComponent } from '../../components/controles-zoom/controles-zoom.component';
@@ -40,6 +51,10 @@ import { ModalColaboradoresComponent } from '../../components/modal-colaboradore
 import { ChatAsistenteIaComponent } from '../../components/chat-asistente-ia/chat-asistente-ia.component';
 import { ChatAgenteSeniorComponent } from '../../components/chat-agente-senior/chat-agente-senior.component';
 import { ToastContainerComponent } from '../../../../shared/components/toast-container/toast-container.component';
+import {
+  ConfiguracionGeneracionSpring,
+  ModalGeneracionSpringComponent
+} from '../../components/modal-generacion-spring/modal-generacion-spring.component';
 import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { TokenStorageService } from '../../../../core/services/token-storage.service';
@@ -81,6 +96,7 @@ import {
     ModalPropiedadesEntidadComponent,
     ModalPropiedadesRelacionComponent,
     ModalColaboradoresComponent,
+    ModalGeneracionSpringComponent,
     ToastContainerComponent
   ],
   providers: [
@@ -123,6 +139,11 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public errorMessage: string | null = null;
   public modoOscuro = true;
   public zoomNivel = 100;
+  public conflictoRevision: MensajeWS | null = null;
+  public modalGeneracionActivo = false;
+  public generandoSpring = false;
+  public errorGeneracionSpring: string | null = null;
+  private generacionSubscription: Subscription | null = null;
 
   // ── Estado Modales de Propiedades y Colaboradores ──
   public modalEntidadActivo = false;
@@ -134,6 +155,49 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public relacionNombreDestino = 'Destino';
 
   public modalColaboradoresActivo = false;
+
+  public get puedeEditar(): boolean {
+    return this.proyecto?.rol_usuario === 'propietario' || this.proyecto?.rol_usuario === 'editor';
+  }
+
+  public get puedeExportar(): boolean {
+    return puedeExportarSpring(this.proyecto?.rol_usuario || '');
+  }
+
+  public get puedeGenerarSpring(): boolean {
+    return puedeGenerarSpring(this.estadoActualGeneracion);
+  }
+
+  public get motivoBloqueoGeneracion(): string {
+    return motivoBloqueoSpring(this.estadoActualGeneracion);
+  }
+
+  public get nombreInicialGeneracion(): string {
+    return normalizarNombreProyectoSpring(this.proyecto?.nombre || '');
+  }
+
+  public get paqueteInicialGeneracion(): string {
+    return this.proyecto?.paquete_base || '';
+  }
+
+  private get estadoActualGeneracion() {
+    return {
+      proyectoId: this.proyecto?.id ?? null,
+      proyectoActivoId: this.proyectoId,
+      rol: this.proyecto?.rol_usuario || '',
+      conexion: this.estadoConexion,
+      guardado: this.estadoGuardado,
+      conflicto: !!this.conflictoRevision,
+      generando: this.generandoSpring
+    };
+  }
+
+  public onLocalizarHallazgo(hallazgo: HallazgoValidacion): void {
+    const objetivo = objetivoVisible(hallazgo);
+    if (!objetivo || !this.canvasService.enfocarObjetivo(objetivo.tipo, objetivo.id)) {
+      this.toastService.info('El hallazgo no tiene un elemento visible en el lienzo.');
+    }
+  }
 
   // ── Ciclo de Vida ──
 
@@ -164,14 +228,15 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
 
   @HostListener('window:beforeunload')
   public onBeforeUnload(): void {
-    if (this.canvasService.estaListo) {
+    if (this.puedeEditar && this.canvasService.estaListo) {
       const datos = this.canvasService.obtenerSnapshotDatos();
       this.socketService.forzarGuardarSnapshot(datos);
     }
   }
 
   public ngOnDestroy(): void {
-    if (this.canvasService.estaListo) {
+    this.generacionSubscription?.unsubscribe();
+    if (this.puedeEditar && this.canvasService.estaListo) {
       const datos = this.canvasService.obtenerSnapshotDatos();
       this.socketService.forzarGuardarSnapshot(datos);
     }
@@ -190,6 +255,8 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
       this.apiService.getDiagrama(this.proyectoId).subscribe({
         next: (datos: DiagramaCargaInicial) => {
           this.proyecto = datos.proyecto;
+          this.socketService.establecerRevision(datos.proyecto.revision);
+          this.canvasService.setSoloLectura(!this.puedeEditar);
           this.isLoading = false;
           this.cdr.detectChanges();
 
@@ -231,6 +298,13 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     );
 
     this.subscriptions.add(
+      this.socketService.conflicto$.subscribe(conflicto => {
+        this.conflictoRevision = conflicto;
+        this.cdr.detectChanges();
+      })
+    );
+
+    this.subscriptions.add(
       this.socketService.usuariosConectados$.subscribe(usuarios => {
         this.usuariosConectados = usuarios;
         this.cdr.detectChanges();
@@ -242,8 +316,14 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
         const accion = msg.accion || msg.evento;
 
         if (accion === 'snapshot_guardado') {
-          if (msg.id_map || msg.rel_id_map) {
-            this.canvasService.actualizarIdsSincronizados(msg.id_map, msg.rel_id_map);
+          if (msg.exito !== false && msg.usuario_id === this.miUsuarioId && (msg.id_map || msg.rel_id_map || msg.attr_id_map || msg.operation_id_map || msg.parameter_id_map)) {
+            this.canvasService.actualizarIdsSincronizados(msg.id_map, msg.rel_id_map, msg.attr_id_map, msg.operation_id_map, msg.parameter_id_map);
+          }
+          if (
+            msg.exito !== false && msg.usuario_id !== this.miUsuarioId &&
+            this.estadoGuardado === 'guardado'
+          ) {
+            this.recargarEstadoConfirmado();
           }
           return;
         }
@@ -253,6 +333,24 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
             this.proyecto.nombre = msg.nombre;
             this.cdr.detectChanges();
           }
+          return;
+        }
+
+        if (accion === 'diagram.updated') {
+          if (msg.usuario_id !== this.miUsuarioId && this.estadoGuardado === 'guardado') {
+            this.recargarEstadoConfirmado();
+          }
+          return;
+        }
+
+        if (accion === 'access.revoked') {
+          this.generacionSubscription?.unsubscribe();
+          this.generacionSubscription = null;
+          this.generandoSpring = false;
+          this.modalGeneracionActivo = false;
+          this.errorMessage = 'Tu acceso a este proyecto fue revocado.';
+          this.socketService.desconectar();
+          this.cdr.detectChanges();
           return;
         }
 
@@ -303,24 +401,51 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   private suscribirEventosCanvas(): void {
     this.subscriptions.add(this.canvasService.zoomNivel$.subscribe(nivel => { this.zoomNivel = nivel; this.cdr.markForCheck(); }));
     this.subscriptions.add(this.canvasService.solicitudActualizarRelacion$.subscribe(rel => {
+      if (!this.puedeEditar) return;
       this.socketService.enviarActualizarRelacion(rel);
       this.programarSnapshot();
     }));
-    this.subscriptions.add(this.canvasService.solicitudEliminarRelacion$.subscribe(id => this.socketService.enviarEliminarRelacion(id)));
-    this.subscriptions.add(this.canvasService.bloquearEntidadLocal$.subscribe(id => this.socketService.enviarBloquearEntidad(id)));
-    this.subscriptions.add(this.canvasService.moverEntidadLocal$.subscribe(ev => this.socketService.enviarMoverEntidad(ev.entidadId, ev.x, ev.y)));
+    this.subscriptions.add(this.canvasService.solicitudEliminarRelacion$.subscribe(id => {
+      if (this.puedeEditar) this.socketService.enviarEliminarRelacion(id);
+    }));
+    this.subscriptions.add(this.canvasService.bloquearEntidadLocal$.subscribe(id => {
+      if (this.puedeEditar) this.socketService.enviarBloquearEntidad(id);
+    }));
+    this.subscriptions.add(this.canvasService.moverEntidadLocal$.subscribe(ev => {
+      if (this.puedeEditar) this.socketService.enviarMoverEntidad(ev.entidadId, ev.x, ev.y);
+    }));
     this.subscriptions.add(this.canvasService.moverEntidadFinLocal$.subscribe(ev => {
+      if (!this.puedeEditar) return;
       this.socketService.enviarMoverEntidad(ev.entidadId, ev.x, ev.y);
       this.programarSnapshot();
     }));
-    this.subscriptions.add(this.canvasService.desbloquearEntidadLocal$.subscribe(id => this.socketService.enviarDesbloquearEntidad(id)));
-    this.subscriptions.add(this.canvasService.snapshotRequerido$.subscribe(() => this.programarSnapshot()));
+    this.subscriptions.add(this.canvasService.desbloquearEntidadLocal$.subscribe(id => {
+      if (this.puedeEditar) this.socketService.enviarDesbloquearEntidad(id);
+    }));
+    this.subscriptions.add(this.canvasService.snapshotRequerido$.subscribe(() => {
+      if (this.puedeEditar) this.programarSnapshot();
+    }));
     this.subscriptions.add(this.canvasService.cerrarModales$.subscribe(() => this.cerrarTodosModales()));
+  }
+
+  private recargarEstadoConfirmado(): void {
+    this.apiService.getDiagrama(this.proyectoId).subscribe({
+      next: datos => {
+        this.proyecto = datos.proyecto;
+        this.socketService.establecerRevision(datos.proyecto.revision);
+        this.canvasService.limpiar();
+        this.canvasService.renderizarEntidades(datos.entidades);
+        this.canvasService.renderizarRelaciones(datos.relaciones);
+        this.cdr.detectChanges();
+      },
+      error: () => this.toastService.error('No se pudo recuperar el estado confirmado del diagrama.')
+    });
   }
 
   // ── Guardado de Editor Inline ──
 
   public onGuardarEditor(evento: GuardarEditorEvento): void {
+    if (!this.puedeEditar) return;
     if (evento.tipo === 'nombre_relacion' && evento.relacionId !== null) {
       const relActualizada = this.canvasService.actualizarNombreRelacion(evento.relacionId, evento.valor);
       if (relActualizada) {
@@ -374,6 +499,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   // ── Selección de Relación y Cardinalidad ──
 
   public confirmarTipoRelacion(tipo: TipoRelacionUML): void {
+    if (!this.puedeEditar) return;
     const res = this.canvasService.confirmarTipoRelacion(
       tipo,
       this.socketService.generarIdTemporal(),
@@ -392,6 +518,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public seleccionarCardinalidad(ev: EventoSeleccionCardinalidad): void {
+    if (!this.puedeEditar) return;
     const relActualizada = this.canvasService.aplicarCardinalidad(
       ev.relacionId,
       ev.extremo,
@@ -406,6 +533,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   // ── Manejo de Menú Contextual ──
 
   public onAbrirPropiedadesContextual(ev: EventoContextualAccion): void {
+    if (!this.puedeEditar) return;
     if (ev.tipo === 'entidad') {
       const entidad = this.canvasService.getEntidad(ev.id);
       if (entidad) {
@@ -427,6 +555,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onAgregarEtiquetaContextual(ev: EventoContextualAccion): void {
+    if (!this.puedeEditar) return;
     if (ev.tipo === 'relacion') {
       const pos = this.canvasService.obtenerPosicionEditorNombreRelacion(ev.id);
       if (pos) {
@@ -436,6 +565,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onEliminarContextual(ev: EventoContextualAccion): void {
+    if (!this.puedeEditar) return;
     if (ev.tipo === 'entidad') {
       this.canvasService.eliminarCeldaRemota(ev.id);
       this.socketService.enviarEliminarEntidad(ev.id);
@@ -450,6 +580,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   // ── Modales de Propiedades y Colaboradores ──
 
   public onGuardarPropiedadesEntidad(entidadActualizada: EntidadDiagrama): void {
+    if (!this.puedeEditar) return;
     this.canvasService.actualizarEntidadLocal(entidadActualizada);
     this.socketService.enviarActualizarEntidad(entidadActualizada);
     this.programarSnapshot();
@@ -465,11 +596,14 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onGuardarPropiedadesRelacion(datos: GuardarPropiedadesRelacionPayload): void {
+    if (!this.puedeEditar) return;
     const relActualizada = this.canvasService.actualizarPropiedadesRelacion(
       datos.relacionId,
       datos.nombre,
       datos.cardinalidadOrigen,
-      datos.cardinalidadDestino
+      datos.cardinalidadDestino,
+      { tipo: datos.tipo, rol_origen: datos.rolOrigen, rol_destino: datos.rolDestino,
+        navegable_origen: datos.navegableOrigen, navegable_destino: datos.navegableDestino }
     );
     if (relActualizada) {
       this.socketService.enviarActualizarRelacion(relActualizada);
@@ -487,6 +621,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onEliminarRelacionDesdeModal(relacionId: number): void {
+    if (!this.puedeEditar) return;
     this.canvasService.eliminarRelacionRemota(relacionId);
     this.socketService.enviarEliminarRelacion(relacionId);
     this.modalRelacionActivo = false;
@@ -528,6 +663,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
 
   @HostListener('document:keydown', ['$event'])
   public onKeydownGlobal(evt: KeyboardEvent): void {
+    if (!this.puedeEditar) return;
     if (evt.key === 'Delete' || evt.key === 'Backspace') {
       const activeTag = (document.activeElement?.tagName || '').toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea' || (document.activeElement as HTMLElement)?.isContentEditable) {
@@ -551,6 +687,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   // ── Acciones Generales y de Barra Lateral ──
 
   public onAgregarEntidad(): void {
+    if (!this.puedeEditar) return;
     const centro = this.canvasService.calcularCentroVisible();
     const offset = (this.canvasService.getCantidadEntidades() % 6) * 36;
     const nueva = this.canvasService.crearEntidadLocal(
@@ -563,10 +700,12 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onAgregarClaseAsociacion(): void {
+    if (!this.puedeEditar) return;
     this.toastService.info('Para modelar una Clase de Asociación (N:M): traza un enlace entre dos tablas y selecciona "Clase de Asociación (N:M)" en el menú.');
   }
 
   public onAgregarNota(): void {
+    if (!this.puedeEditar) return;
     const centro = this.canvasService.calcularCentroVisible();
     const offset = (this.canvasService.getCantidadEntidades() % 6) * 36;
     const nueva = this.canvasService.crearEntidadLocal(
@@ -581,27 +720,93 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onRenombrarProyecto(nuevoNombre: string): void {
+    if (!this.puedeEditar) return;
     if (!this.proyecto || !nuevoNombre.trim()) return;
     const nombreLimpio = nuevoNombre.trim();
     this.proyecto.nombre = nombreLimpio;
     this.socketService.enviarRenombrarProyecto(nombreLimpio);
-    this.apiService.renombrarProyecto(this.proyectoId, nombreLimpio).subscribe({
-      next: () => {
-        this.toastService.exito(`Proyecto renombrado a "${nombreLimpio}"`);
-      },
-      error: () => {
-        this.toastService.error('No se pudo guardar el nuevo nombre del proyecto.');
-      }
-    });
+    this.toastService.info(`Guardando el nombre "${nombreLimpio}"...`);
   }
 
   public onGenerarCodigo(): void {
-    this.toastService.info('Generador de código Spring Boot y entidades JPA en desarrollo para la Fase 2.');
+    this.errorGeneracionSpring = null;
+    this.modalGeneracionActivo = true;
+  }
+
+  public onCerrarGeneracion(): void {
+    this.generacionSubscription?.unsubscribe();
+    this.generacionSubscription = null;
+    this.generandoSpring = false;
+    this.modalGeneracionActivo = false;
+  }
+
+  public onGuardarAntesDeGenerar(): void {
+    if (!this.puedeEditar || !this.canvasService.estaListo || this.conflictoRevision) return;
+    if (this.estadoGuardado === 'guardando') {
+      this.toastService.info('El autoguardado ya está esperando confirmación del servidor.');
+      return;
+    }
+    this.socketService.forzarGuardarSnapshot(this.canvasService.obtenerSnapshotDatos());
+  }
+
+  public onSolicitarGeneracion(configuracion: ConfiguracionGeneracionSpring): void {
+    if (!this.puedeGenerarSpring || !this.proyecto) {
+      this.errorGeneracionSpring = this.motivoBloqueoGeneracion || 'No se puede generar en este momento.';
+      return;
+    }
+    const capturedProjectId = this.proyectoId;
+    const capturedRevision = this.socketService.revisionActual;
+    const request: SolicitudGeneracionSpring = {
+      expected_revision: capturedRevision,
+      nombre_proyecto: configuracion.nombre_proyecto,
+      paquete_base: configuracion.paquete_base,
+      opciones: { ...configuracion.opciones }
+    };
+    this.generandoSpring = true;
+    this.errorGeneracionSpring = null;
+    this.generacionSubscription?.unsubscribe();
+    this.generacionSubscription = this.generadorService
+      .generarSpringBoot(capturedProjectId, request)
+      .subscribe({
+        next: async response => {
+          if (this.proyectoId !== capturedProjectId || this.socketService.revisionActual !== capturedRevision) {
+            this.generandoSpring = false;
+            return;
+          }
+          try {
+            const prepared = await this.generadorService.prepararDescargaSpring(
+              response, configuracion.nombre_proyecto
+            );
+            if (this.proyectoId !== capturedProjectId || this.socketService.revisionActual !== capturedRevision) return;
+            this.generadorService.iniciarDescarga(prepared);
+            this.toastService.exito(`Proyecto ${prepared.filename} generado y descargado.`);
+            this.modalGeneracionActivo = false;
+          } catch (error) {
+            this.errorGeneracionSpring = error instanceof Error
+              ? error.message : 'La respuesta de generación no es un ZIP válido.';
+          } finally {
+            this.generandoSpring = false;
+            this.cdr.detectChanges();
+          }
+        },
+        error: async (error: HttpErrorResponse) => {
+          if (this.proyectoId !== capturedProjectId || this.socketService.revisionActual !== capturedRevision) return;
+          const parsed = await this.generadorService.leerErrorGeneracion(error);
+          if (parsed.code === 'stale_revision') {
+            this.socketService.registrarConflictoRevision(parsed.current_revision, parsed.message);
+          }
+          this.errorGeneracionSpring = this.generadorService.describirErrorGeneracion(parsed);
+          this.generandoSpring = false;
+          this.cdr.detectChanges();
+        }
+      });
+    this.subscriptions.add(this.generacionSubscription);
   }
 
   // ── Integración Asistente IA ──
 
   public onDiagramaIAGenerado(payload: DiagramaGeneradoPayload): void {
+    if (!this.puedeEditar) return;
     if (!this.canvasService.estaListo) return;
 
     const centro = this.canvasService.calcularCentroVisible();
@@ -631,6 +836,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onEjecutarDeltaIA(delta: DeltaInstruccionIARespuesta): void {
+    if (!this.puedeEditar) return;
     if (!this.canvasService.estaListo) return;
 
     const res = this.asistenteIaService.procesarDelta(
@@ -678,19 +884,33 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onImportarXml(archivo: File): void {
+    if (!this.puedeEditar) return;
     if (!this.proyectoId || !archivo) return;
     this.toastService.info(`Importando archivo ${archivo.name}...`);
-    this.generadorService.importarDiagramaXML(this.proyectoId, archivo, true).subscribe({
+    this.generadorService.importarDiagramaXML(
+      this.proyectoId, archivo, this.socketService.revisionActual, true
+    ).subscribe({
       next: (resp: RespuestaImportacionXML) => {
+        this.socketService.establecerRevision(resp.revision);
         const m = resp.metricas;
+        const persistencia = m.entidades_persistentes
+          ? ` ${m.entidades_persistentes} entidades quedaron preparadas para Spring Boot.`
+          : '';
+        const duplicadosOmitidos = m.clasificadores_duplicados_omitidos
+          ? ` Se omitieron ${m.clasificadores_duplicados_omitidos} copias ocultas sin referencias.`
+          : '';
         this.toastService.exito(
-          `¡Diagrama importado! Se crearon ${m.entidades_creadas} entidades, ${m.atributos_creados} atributos y ${m.relaciones_creadas} relaciones.`
+          `¡Diagrama importado! Se crearon ${m.entidades_creadas} entidades, ${m.atributos_creados} atributos y ${m.relaciones_creadas} relaciones.${persistencia}${duplicadosOmitidos}`
         );
-        this.canvasService.limpiar();
-        this.cargarDiagrama();
+        this.recargarEstadoConfirmado();
       },
       error: (err: HttpErrorResponse) => {
-        const msg = err.error?.detail || 'Error al importar archivo XML 2.1.';
+        if (err.status === 409 && err.error?.code === 'stale_revision') {
+          this.socketService.registrarConflictoRevision(
+            err.error?.current_revision, err.error?.message
+          );
+        }
+        const msg = err.error?.detail || err.error?.message || 'Error al importar archivo XML 2.1.';
         this.toastService.error(msg);
       }
     });
@@ -699,6 +919,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   // ── Drag & Drop de Elementos al Lienzo ──
 
   public onDragOverLienzo(evt: DragEvent): void {
+    if (!this.puedeEditar) return;
     evt.preventDefault();
     if (evt.dataTransfer) {
       evt.dataTransfer.dropEffect = 'copy';
@@ -706,6 +927,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onDropLienzo(evt: DragEvent): void {
+    if (!this.puedeEditar) return;
     evt.preventDefault();
     const rawData = evt.dataTransfer?.getData('application/json');
     let tipo = evt.dataTransfer?.getData('text/plain') || 'entidad';
@@ -754,8 +976,17 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   public onZoomOut(): void { this.canvasService.zoomOut(); }
   public onZoomReset(): void { this.canvasService.zoomReset(); }
 
+  public onRecargarTrasConflicto(): void {
+    const acepta = window.confirm(
+      'Recargar descartará los cambios locales no confirmados. ¿Deseas recuperar el estado remoto?'
+    );
+    if (!acepta) return;
+    this.socketService.descartarCambiosLocalesEnConflicto();
+    window.location.reload();
+  }
+
   public onCerrarSesion(): void {
-    if (this.canvasService.estaListo) {
+    if (this.puedeEditar && this.canvasService.estaListo) {
       const datos = this.canvasService.obtenerSnapshotDatos();
       this.socketService.forzarGuardarSnapshot(datos);
     }
@@ -764,7 +995,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   public onVolverDashboard(): void {
-    if (this.canvasService.estaListo) {
+    if (this.puedeEditar && this.canvasService.estaListo) {
       const datos = this.canvasService.obtenerSnapshotDatos();
       this.socketService.forzarGuardarSnapshot(datos);
     }
@@ -773,6 +1004,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private programarSnapshot(): void {
+    if (!this.puedeEditar) return;
     const datos = this.canvasService.obtenerSnapshotDatos();
     this.socketService.programarGuardarSnapshot(datos);
   }

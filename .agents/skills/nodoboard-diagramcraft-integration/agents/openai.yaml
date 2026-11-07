@@ -1,0 +1,4 @@
+interface:
+  display_name: "NodoBoard DiagramCraft Integration"
+  short_description: "Adapta capacidades auditadas de DiagramCraft con seguridad"
+  default_prompt: "Usa $nodoboard-diagramcraft-integration para analizar una tarea Fxx/Bxx autorizada y proponer o realizar el corte mínimo con pruebas."

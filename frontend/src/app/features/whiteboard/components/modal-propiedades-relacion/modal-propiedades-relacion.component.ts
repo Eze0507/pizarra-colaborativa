@@ -8,6 +8,11 @@ export interface GuardarPropiedadesRelacionPayload {
   nombre: string;
   cardinalidadOrigen: string;
   cardinalidadDestino: string;
+  tipo: RelacionDiagrama['tipo'];
+  rolOrigen: string;
+  rolDestino: string;
+  navegableOrigen: boolean;
+  navegableDestino: boolean;
 }
 
 @Component({
@@ -31,6 +36,11 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
   public cardinalidadOrigen = '';
   public cardinalidadDestino = '';
   public esComposicion = false;
+  public tipo: RelacionDiagrama['tipo'] = 'asociacion';
+  public rolOrigen = '';
+  public rolDestino = '';
+  public navegableOrigen = false;
+  public navegableDestino = false;
   public tipoTexto = 'Asociación';
 
   public readonly presetsCardinalidad: string[] = ['1', '0..1', '1..*', '0..*', '*'];
@@ -48,6 +58,11 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
     this.cardinalidadOrigen = relacion.cardinalidad_origen || '';
     this.cardinalidadDestino = relacion.cardinalidad_destino || '';
     this.esComposicion = relacion.tipo === 'composicion' || !!relacion.destino_bloqueado;
+    this.tipo = relacion.tipo;
+    this.rolOrigen = relacion.rol_origen || '';
+    this.rolDestino = relacion.rol_destino || '';
+    this.navegableOrigen = !!relacion.navegable_origen;
+    this.navegableDestino = !!relacion.navegable_destino;
 
     switch (relacion.tipo) {
       case 'asociacion':
@@ -87,12 +102,18 @@ export class ModalPropiedadesRelacionComponent implements OnChanges {
 
   public onGuardar(): void {
     if (!this.relacion) return;
+    const composicion = this.tipo === 'composicion';
 
     this.guardar.emit({
       relacionId: this.relacion.id,
       nombre: this.nombreRelacion.trim(),
       cardinalidadOrigen: this.cardinalidadOrigen.trim(),
-      cardinalidadDestino: this.esComposicion ? (this.cardinalidadDestino.trim() ? '1' : '') : this.cardinalidadDestino.trim()
+      cardinalidadDestino: composicion ? (this.cardinalidadDestino.trim() ? '1' : '') : this.cardinalidadDestino.trim(),
+      tipo: this.tipo,
+      rolOrigen: this.rolOrigen.trim(),
+      rolDestino: this.rolDestino.trim(),
+      navegableOrigen: this.navegableOrigen,
+      navegableDestino: this.navegableDestino
     });
   }
 
