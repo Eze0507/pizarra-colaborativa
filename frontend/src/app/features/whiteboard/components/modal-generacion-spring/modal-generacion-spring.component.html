@@ -21,18 +21,48 @@
       </label>
       <small class="field-error" *ngIf="errorPaquete">{{ errorPaquete }}</small>
 
-      <fieldset>
-        <legend>Capas</legend>
-        <label *ngFor="let capa of capas">
-          <input
-            type="checkbox"
-            [checked]="opciones[capa.key]"
-            (change)="cambiarOpcion(capa.key, $any($event.target).checked)"
-          />
-          <span>{{ capa.label }}</span>
-        </label>
-      </fieldset>
-      <small class="option-message" *ngIf="mensajeOpciones">{{ mensajeOpciones }}</small>
+      <section class="advanced-section">
+        <button
+          type="button"
+          class="advanced-toggle"
+          [attr.aria-expanded]="opcionesAvanzadasAbiertas"
+          aria-controls="spring-advanced-options"
+          (click)="alternarOpcionesAvanzadas()"
+        >
+          <span class="advanced-title">Opciones avanzadas</span>
+          <span class="advanced-summary">{{ resumenCapas }}</span>
+          <svg
+            class="advanced-chevron"
+            [class.open]="opcionesAvanzadasAbiertas"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+
+        <div
+          *ngIf="opcionesAvanzadasAbiertas"
+          id="spring-advanced-options"
+          class="advanced-panel"
+        >
+          <fieldset>
+            <legend>Capas</legend>
+            <label *ngFor="let capa of capas">
+              <input
+                type="checkbox"
+                [checked]="opciones[capa.key]"
+                (change)="cambiarOpcion(capa.key, $any($event.target).checked)"
+              />
+              <span>{{ capa.label }}</span>
+            </label>
+          </fieldset>
+          <small class="option-message" *ngIf="mensajeOpciones">{{ mensajeOpciones }}</small>
+        </div>
+      </section>
 
       <div class="blocked" *ngIf="!puedeGenerar && motivoBloqueo" role="status">
         {{ motivoBloqueo }}

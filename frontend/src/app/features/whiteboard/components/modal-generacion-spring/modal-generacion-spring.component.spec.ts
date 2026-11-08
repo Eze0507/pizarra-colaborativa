@@ -19,9 +19,9 @@ describe('ModalGeneracionSpringComponent', () => {
     fixture.detectChanges();
   });
 
-  it('inicia solo con modelo y valida nombre y paquete', () => {
+  it('inicia con las cuatro capas y valida nombre y paquete', () => {
     expect(component.opciones).toEqual({
-      modelo: true, repositorio: false, servicio: false, controlador: false
+      modelo: true, repositorio: true, servicio: true, controlador: true
     });
     expect(component.formularioValido).toBeFalse();
     component.nombreProyecto = 'tienda';
@@ -29,6 +29,39 @@ describe('ModalGeneracionSpringComponent', () => {
     expect(component.formularioValido).toBeTrue();
     component.paqueteBase = 'com.class.tienda';
     expect(component.formularioValido).toBeFalse();
+  });
+
+  it('mantiene las capas en opciones avanzadas cerradas y muestra su resumen', () => {
+    const toggle = fixture.nativeElement.querySelector('.advanced-toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.textContent).toContain('4 capas incluidas');
+    expect(fixture.nativeElement.querySelector('#spring-advanced-options')).toBeNull();
+
+    toggle.click();
+    fixture.detectChanges();
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const panel = fixture.nativeElement.querySelector('#spring-advanced-options') as HTMLElement;
+    expect(panel).not.toBeNull();
+    const checkboxes = Array.from(panel.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+    expect(checkboxes.length).toBe(4);
+    expect(checkboxes.every(checkbox => checkbox.checked)).toBeTrue();
+  });
+
+  it('actualiza el resumen y reinicia las opciones avanzadas al reabrir', () => {
+    component.opcionesAvanzadasAbiertas = true;
+    component.cambiarOpcion('repositorio', false);
+    fixture.detectChanges();
+    expect(component.resumenCapas).toBe('1 capa incluida');
+
+    component.ngOnChanges({
+      visible: { currentValue: true, previousValue: false, firstChange: false, isFirstChange: () => false }
+    });
+    fixture.detectChanges();
+
+    expect(component.opcionesAvanzadasAbiertas).toBeFalse();
+    expect(component.resumenCapas).toBe('4 capas incluidas');
+    expect(fixture.nativeElement.querySelector('#spring-advanced-options')).toBeNull();
   });
 
   it('activa requisitos y desactiva dependientes de forma visible', () => {
@@ -49,7 +82,9 @@ describe('ModalGeneracionSpringComponent', () => {
     spyOn(component.generar, 'emit');
     component.enviar();
     expect(component.generar.emit).toHaveBeenCalledWith(jasmine.objectContaining({
-      nombre_proyecto: 'tienda', paquete_base: 'com.ejemplo.tienda'
+      nombre_proyecto: 'tienda',
+      paquete_base: 'com.ejemplo.tienda',
+      opciones: { modelo: true, repositorio: true, servicio: true, controlador: true }
     }));
     component.generando = true;
     component.enviar();

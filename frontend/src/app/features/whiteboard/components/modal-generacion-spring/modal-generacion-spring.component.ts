@@ -54,6 +54,7 @@ export class ModalGeneracionSpringComponent implements OnChanges {
   public paqueteBase = '';
   public opciones: OpcionesGeneracionSpring = this.opcionesIniciales();
   public mensajeOpciones = '';
+  public opcionesAvanzadasAbiertas = false;
 
   public ngOnChanges(changes: SimpleChanges): void {
     if (changes['visible']?.currentValue && !changes['visible']?.previousValue) {
@@ -61,7 +62,12 @@ export class ModalGeneracionSpringComponent implements OnChanges {
       this.paqueteBase = this.paqueteInicial;
       this.opciones = this.opcionesIniciales();
       this.mensajeOpciones = '';
+      this.opcionesAvanzadasAbiertas = false;
     }
+  }
+
+  public alternarOpcionesAvanzadas(): void {
+    this.opcionesAvanzadasAbiertas = !this.opcionesAvanzadasAbiertas;
   }
 
   public cambiarOpcion(nombre: keyof OpcionesGeneracionSpring, activa: boolean): void {
@@ -120,6 +126,15 @@ export class ModalGeneracionSpringComponent implements OnChanges {
     return !this.errorNombre && !this.errorPaquete && this.opcionesCoherentes;
   }
 
+  public get cantidadCapasSeleccionadas(): number {
+    return this.capas.filter(capa => this.opciones[capa.key]).length;
+  }
+
+  public get resumenCapas(): string {
+    const cantidad = this.cantidadCapasSeleccionadas;
+    return `${cantidad} ${cantidad === 1 ? 'capa incluida' : 'capas incluidas'}`;
+  }
+
   private get opcionesCoherentes(): boolean {
     return (!this.opciones.repositorio || this.opciones.modelo)
       && (!this.opciones.servicio || this.opciones.repositorio)
@@ -127,6 +142,6 @@ export class ModalGeneracionSpringComponent implements OnChanges {
   }
 
   private opcionesIniciales(): OpcionesGeneracionSpring {
-    return { modelo: true, repositorio: false, servicio: false, controlador: false };
+    return { modelo: true, repositorio: true, servicio: true, controlador: true };
   }
 }

@@ -108,14 +108,14 @@ describe('SidebarPizarraComponent - validacion F03', () => {
     expect(fixture.componentInstance.validandoModelo).toBeFalse();
   });
 
-  it('reutiliza un unico boton principal Generacion Java', () => {
+  it('expone un unico boton principal para descargar Spring Boot', () => {
     const fixture = create();
     const emit = spyOn(fixture.componentInstance.generarCodigo, 'emit');
     const buttons = Array.from(
       fixture.nativeElement.querySelectorAll('.btn-cta-estrella')
     ) as HTMLButtonElement[];
     expect(buttons.length).toBe(1);
-    expect(buttons[0].textContent).toContain('Generación Java');
+    expect(buttons[0].textContent).toContain('Descargar Spring Boot');
     buttons[0].click();
     expect(emit).toHaveBeenCalledTimes(1);
   });
