@@ -12,7 +12,7 @@ from modelado.realtime import notificar_evento_proyecto_sync
 from usuario.models import UserColaborador
 from ..models import Conversacion, Mensaje
 from ..serializers import MensajeSerializer, ConversacionSerializer
-from . import AsistenteServiceError, GeminiProviderService
+from . import AsistenteServiceError, OllamaProviderService, GeminiProviderService
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,8 @@ class AgenteSeniorService:
 
     # Caché ligero del último contexto del diagrama enviado desde el cliente por proyecto
     _contexto_diagrama_reciente: dict[int, dict] = {}
+    _preferencia_ia_local_por_mensaje: dict[int, bool] = {}
+    _preferencia_ia_local_por_proyecto: dict[int, bool] = {}
 
     @classmethod
     def _obtener_lock_proyecto(cls, proyecto_id: int) -> threading.Lock:
@@ -274,7 +276,8 @@ class AgenteSeniorService:
         proyecto_id: int,
         user,
         contenido: str | None,
-        contexto_diagrama: dict | None = None
+        contexto_diagrama: dict | None = None,
+        usar_ia_local: bool = False
     ) -> dict:
         """
         Flujo Principal Pasos 3–5, FA-01 Pasos 1–3 y Excepciones FE-03, FE-04, FE-05:
@@ -338,6 +341,10 @@ class AgenteSeniorService:
                 estado=estado_inicial,
                 contenido=contenido_limpio
             )
+
+            with cls._global_lock:
+                cls._preferencia_ia_local_por_mensaje[mensaje_usuario.id] = bool(usar_ia_local)
+                cls._preferencia_ia_local_por_proyecto[proyecto_id] = bool(usar_ia_local)
 
             estado_cola = cls.calcular_estado_cola(conversacion)
             mensaje_serializado = MensajeSerializer(
@@ -466,18 +473,21 @@ class AgenteSeniorService:
 
                     # Paso 6 / FA-01 Paso 5: Recopilar el contexto vigente en este instante
                     try:
-                        prompt_contextualizado = cls.construir_prompt_con_contexto(
+                        # Paso 7 y 8: Enviar la consulta y el contexto al proveedor de IA
+                        # Según el interruptor "IA local":
+                        # - Si está activado (usar_ia_local=True): responde directamente con el agente local (Ollama).
+                        # - Si no está activado (usar_ia_local=False): responde con Gemini y si falla pasa al agente local como última opción.
+                        with cls._global_lock:
+                            usar_ia_local_msg = cls._preferencia_ia_local_por_mensaje.pop(
+                                mensaje_actual.id,
+                                cls._preferencia_ia_local_por_proyecto.get(proyecto_id, False)
+                            )
+
+                        texto_respuesta = cls._generar_respuesta_agente_senior(
                             proyecto_id=proyecto_id,
                             conversacion_id=conversacion.id,
-                            mensaje_pregunta=mensaje_actual
-                        )
-
-                        # Paso 7 y 8: Enviar la consulta y el contexto al proveedor externo de IA
-                        texto_respuesta = GeminiProviderService.generar_contenido(
-                            contents=[prompt_contextualizado],
-                            system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
-                            response_mime_type=None,
-                            temperature=0.3
+                            mensaje_pregunta=mensaje_actual,
+                            usar_ia_local=usar_ia_local_msg
                         )
 
                         # Paso 9: Registrar la respuesta generada en el historial y actualizar la consulta a «Respondido»
@@ -609,11 +619,75 @@ class AgenteSeniorService:
             close_old_connections()
 
     @classmethod
+    def _generar_respuesta_agente_senior(
+        cls,
+        proyecto_id: int,
+        conversacion_id: int,
+        mensaje_pregunta: Mensaje,
+        usar_ia_local: bool = False
+    ) -> str:
+        """
+        Resuelve la consulta según el estado del interruptor 'IA local':
+        - Si `usar_ia_local=True`: responde con el agente local de Ollama (qwen2.5:3b)
+          usando un prompt compacto adaptado a su ventana de contexto de 4096 tokens.
+        - Si `usar_ia_local=False` (por defecto): responde con los modelos comerciales de
+          Google Gemini usando el contexto extendido, y si Gemini tiene problemas pasa la
+          consulta al agente local de Ollama como última opción.
+        """
+        if usar_ia_local:
+            logger.info(
+                f"[AGENTE_SENIOR] Modo 'IA local' activado para consulta #{mensaje_pregunta.id} "
+                f"(proyecto #{proyecto_id}). Procesando directamente con el agente local (Ollama)..."
+            )
+            prompt_local = cls.construir_prompt_con_contexto(
+                proyecto_id=proyecto_id,
+                conversacion_id=conversacion_id,
+                mensaje_pregunta=mensaje_pregunta,
+                compacto_para_local=True
+            )
+            return OllamaProviderService.generar_contenido(
+                prompt=prompt_local,
+                system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
+                temperature=0.3
+            )
+
+        try:
+            prompt_completo = cls.construir_prompt_con_contexto(
+                proyecto_id=proyecto_id,
+                conversacion_id=conversacion_id,
+                mensaje_pregunta=mensaje_pregunta,
+                compacto_para_local=False
+            )
+            return GeminiProviderService.generar_contenido(
+                contents=[prompt_completo],
+                system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
+                response_mime_type=None,
+                temperature=0.3
+            )
+        except Exception as gemini_exc:
+            logger.warning(
+                f"[AGENTE_SENIOR] Gemini presentó problemas ({gemini_exc}). "
+                "Pasando la pregunta al agente local Ollama como última opción..."
+            )
+            prompt_local = cls.construir_prompt_con_contexto(
+                proyecto_id=proyecto_id,
+                conversacion_id=conversacion_id,
+                mensaje_pregunta=mensaje_pregunta,
+                compacto_para_local=True
+            )
+            return OllamaProviderService.generar_contenido(
+                prompt=prompt_local,
+                system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
+                temperature=0.3
+            )
+
+    @classmethod
     def construir_prompt_con_contexto(
         cls,
         proyecto_id: int,
         conversacion_id: int,
-        mensaje_pregunta: Mensaje
+        mensaje_pregunta: Mensaje,
+        compacto_para_local: bool = False
     ) -> str:
         """
         Ensambla el contexto dinámico del proyecto (Requisito Especial 2 y líneas 108–113 de features.md):
@@ -671,8 +745,32 @@ class AgenteSeniorService:
 
         # 3. Información del diagrama: entidades, atributos y relaciones
         info_diagrama = cls._recopilar_contexto_diagrama(proyecto)
+        if compacto_para_local:
+            entidades_compactas = []
+            for ent in info_diagrama.get("entidades", []):
+                attrs_str = ", ".join(
+                    f"{a.get('nombre')}:{a.get('tipo')}{'(PK)' if a.get('es_clave') else ''}"
+                    for a in (ent.get("atributos") or [])
+                )
+                sufijo_intermedia = " [clase_asociacion N:M]" if ent.get("es_intermedia") else ""
+                entidades_compactas.append(f"{ent.get('nombre')}{sufijo_intermedia}({attrs_str})")
 
-        # 4. Últimos 20 mensajes registrados en la conversación (preguntas y respuestas previas)
+            relaciones_compactas = [
+                f"{r.get('entidad_origen')} [{r.get('cardinalidad_origen') or ''}] "
+                f"--({r.get('tipo')}{':' + r.get('nombre_relacion') if r.get('nombre_relacion') else ''}"
+                f"{', intermedia=' + str(r.get('clase_asociacion')) if r.get('clase_asociacion') else ''})--> "
+                f"[{r.get('cardinalidad_destino') or ''}] {r.get('entidad_destino')}"
+                for r in info_diagrama.get("relaciones", [])
+            ]
+            info_diagrama_final = {
+                "entidades": entidades_compactas,
+                "relaciones": relaciones_compactas,
+            }
+        else:
+            info_diagrama_final = info_diagrama
+
+        # 4. Últimos mensajes registrados en la conversación (preguntas y respuestas previas)
+        limite_mensajes = 6 if compacto_para_local else ULTIMOS_MENSAJES_HISTORIAL
         ultimos_mensajes_qs = (
             Mensaje.objects
             .filter(
@@ -681,28 +779,39 @@ class AgenteSeniorService:
             )
             .exclude(pk=mensaje_pregunta.pk)
             .select_related('usuario')
-            .order_by('-fecha_envio', '-id')[:ULTIMOS_MENSAJES_HISTORIAL]
+            .order_by('-fecha_envio', '-id')[:limite_mensajes]
         )
         ultimos_mensajes = list(reversed(list(ultimos_mensajes_qs)))
 
         historial_formateado = []
         for m in ultimos_mensajes:
+            contenido_msg = m.contenido
+            if compacto_para_local and m.rol == Mensaje.Rol.AGENT and len(contenido_msg) > 280:
+                contenido_msg = contenido_msg[:280] + "..."
+
             if m.rol == Mensaje.Rol.USER:
                 autor_nombre = m.usuario.username if m.usuario else "Usuario"
                 historial_formateado.append({
+                    "rol": "USER",
+                    "usuario": autor_nombre,
+                    "contenido": contenido_msg,
+                } if compacto_para_local else {
                     "id": m.id,
                     "rol": "USER",
                     "usuario": autor_nombre,
                     "fecha_envio": m.fecha_envio.isoformat(),
-                    "contenido": m.contenido,
+                    "contenido": contenido_msg,
                 })
             else:
                 historial_formateado.append({
+                    "rol": "AGENT",
+                    "contenido": contenido_msg,
+                } if compacto_para_local else {
                     "id": m.id,
                     "rol": "AGENT",
                     "pregunta_id": m.pregunta_id,
                     "fecha_envio": m.fecha_envio.isoformat(),
-                    "contenido": m.contenido,
+                    "contenido": contenido_msg,
                 })
 
         contexto_completo = {
@@ -710,18 +819,22 @@ class AgenteSeniorService:
                 "id": proyecto.id,
                 "codigo": proyecto.codigo,
                 "nombre": proyecto.nombre,
-                "descripcion": proyecto.descripcion,
-                "paquete_base": proyecto.paquete_base,
             },
             "usuario_que_envia_mensaje": info_usuario_consulta,
             "participantes_proyecto": participantes,
-            "diagrama_uml": info_diagrama,
-            "ultimos_20_mensajes_conversacion": historial_formateado,
+            "ultimos_mensajes_conversacion": historial_formateado,
+            "diagrama_uml": info_diagrama_final,
         }
+
+        json_contexto = (
+            json.dumps(contexto_completo, ensure_ascii=False, separators=(',', ':'))
+            if compacto_para_local
+            else json.dumps(contexto_completo, ensure_ascii=False, indent=2)
+        )
 
         prompt = (
             "=== CONTEXTO ACTUAL DEL PROYECTO Y CONVERSACIÓN COMPARTIDA ===\n"
-            f"{json.dumps(contexto_completo, ensure_ascii=False, indent=2)}\n\n"
+            f"{json_contexto}\n\n"
             "=== CONSULTA ACTUAL DEL USUARIO ===\n"
             f"Usuario: {info_usuario_consulta['nombre_completo']} (@{info_usuario_consulta['username']}) "
             f"[{info_usuario_consulta['rol_en_proyecto']}]\n"

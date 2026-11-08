@@ -22,7 +22,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   width: 100%;
-  max-width: 680px;
+  max-width: 780px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -126,6 +126,11 @@
 
 .flex-1 {
   flex: 1;
+}
+
+.campo-clasificador {
+  width: 175px;
+  flex-shrink: 0;
 }
 
 .campo-estado {
@@ -313,25 +318,30 @@
 }
 
 .col-pk {
-  width: 50px;
+  width: 48px;
   text-align: center;
 }
 
 .col-nombre {
-  width: 40%;
-}
-
-.col-tipo {
   width: 28%;
 }
 
+.col-tipo {
+  width: 24%;
+}
+
+.col-uml {
+  width: 22%;
+  min-width: 138px;
+}
+
 .col-nulo {
-  width: 90px;
+  width: 86px;
   text-align: center;
 }
 
 .col-acciones {
-  width: 40px;
+  width: 38px;
   text-align: center;
 }
 
@@ -357,6 +367,33 @@
 .select-tipo {
   padding: 6px 8px;
   font-size: 12px;
+}
+
+.col-tipo .select-tipo + .select-tipo {
+  margin-top: 4px;
+}
+
+.select-uml {
+  padding: 6px 8px;
+  font-size: 12px;
+  min-width: 118px;
+}
+
+.check-inline-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #AAAAAA;
+  cursor: pointer;
+  user-select: none;
+}
+
+.check-inline-label input[type="checkbox"] {
+  accent-color: #00A3FF;
+  cursor: pointer;
+  margin: 0;
 }
 
 /* PK Checkbox Styling */
@@ -542,4 +579,8 @@
 :host-context(.whiteboard-root:not(.modo-oscuro)) .btn-secundario:hover {
   background-color: rgba(0, 0, 0, 0.05);
   color: #0F172A;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .check-inline-label {
+  color: #475569;
 }

@@ -26,15 +26,21 @@
       </div>
 
       <div class="header-actions">
-        <!-- Indicador de Cola -->
-        <span
-          class="chip-cola"
-          [class.chip-cola-activa]="estadoCola.en_cola_count > 0"
-          [class.chip-cola-llena]="estadoCola.cola_llena"
-          title="Capacidad máxima: 1 consulta en procesamiento y 2 en espera"
+        <!-- Interruptor IA Local -->
+        <button
+          type="button"
+          class="switch-ia-local"
+          role="switch"
+          [attr.aria-checked]="usarIaLocal"
+          [class.activo]="usarIaLocal"
+          (click)="toggleIaLocal()"
+          [title]="usarIaLocal ? 'IA local activada: responde el agente local' : 'IA local desactivada: responde Gemini (con respaldo local)'"
         >
-          Cola {{ estadoCola.en_cola_count }}/{{ estadoCola.max_en_cola }}
-        </span>
+          <span class="switch-label">IA local</span>
+          <span class="switch-track">
+            <span class="switch-thumb"></span>
+          </span>
+        </button>
 
         <!-- Botón Recargar Historial -->
         <button
@@ -107,9 +113,8 @@
         [class.burbuja-en-cola]="msg.estado === 'en_cola'"
         [class.burbuja-procesando]="msg.estado === 'procesando'"
       >
-        <div class="burbuja-meta">
+        <div *ngIf="msg.rol !== 'AGENT'" class="burbuja-meta">
           <span class="burbuja-autor">
-            <span *ngIf="msg.rol === 'AGENT'" class="badge-ia">IA SENIOR</span>
             {{ obtenerNombreAutor(msg) }}
           </span>
           <span class="burbuja-hora">{{ msg.fecha_envio | date:'shortTime' }}</span>
@@ -171,8 +176,9 @@
           class="input-texto-senior"
           [(ngModel)]="textoConsulta"
           (ngModelChange)="onInputCambio()"
-          [placeholder]="estadoCola.cola_llena ? 'Cola llena — esperando turno libre...' : 'Escribe una consulta sobre el diagrama para el Agente Senior...'"
-          rows="2"
+          (input)="ajustarAlturaInput()"
+          [placeholder]="estadoCola.cola_llena ? 'Cola llena — esperando turno libre...' : 'Pregúntale al Senior'"
+          rows="1"
           [disabled]="estadoCola.cola_llena || enviandoConsulta"
           (keydown.enter)="onEnterInput($event)"
         ></textarea>
@@ -190,23 +196,6 @@
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
         </button>
-      </div>
-
-      <div class="input-footer-meta">
-        <span class="meta-hint">
-          <ng-container *ngIf="estadoCola.procesando && !estadoCola.cola_llena">
-            Agente ocupado · Tu consulta ingresará en cola ({{ estadoCola.en_cola_count + 1 }}/{{ estadoCola.max_en_cola }})
-          </ng-container>
-          <ng-container *ngIf="!estadoCola.procesando">
-            Enter para enviar · Shift+Enter para salto de línea
-          </ng-container>
-        </span>
-        <span
-          class="contador-caracteres"
-          [class.contador-excedido]="textoConsulta.length > maxCaracteres"
-        >
-          {{ textoConsulta.length }}/{{ maxCaracteres }}
-        </span>
       </div>
     </div>
 

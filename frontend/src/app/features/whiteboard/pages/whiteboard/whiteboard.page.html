@@ -89,7 +89,7 @@
     <!-- Botón Flotante y Panel Colaborativo del Agente Senior -->
     <app-chat-agente-senior
       [proyectoId]="proyecto?.id || 0"
-      [contextoDiagrama]="obtenerContextoDiagramaParaIA()"
+      [contextoDiagrama]="contextoDiagramaIA"
       [modoOscuro]="modoOscuro"
     >
     </app-chat-agente-senior>
@@ -97,7 +97,7 @@
     <!-- Botón Flotante y Panel de Asistente IA (Chat y Voz) -->
     <app-chat-asistente-ia
       *ngIf="puedeEditar"
-      [contextoDiagrama]="obtenerContextoDiagramaParaIA()"
+      [contextoDiagrama]="contextoDiagramaIA"
       [modoOscuro]="modoOscuro"
       (ejecutarDeltaIA)="onEjecutarDeltaIA($event)"
     >
@@ -115,7 +115,7 @@
     <app-modal-propiedades-entidad
       [visible]="modalEntidadActivo"
       [entidad]="entidadEditando"
-      [clasificadores]="canvasService.getEntidades()"
+      [clasificadores]="clasificadoresModal"
       (guardar)="onGuardarPropiedadesEntidad($event)"
       (cancelar)="onCancelarModalEntidad()"
     >

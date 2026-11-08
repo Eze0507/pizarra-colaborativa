@@ -18,7 +18,7 @@
         <p class="modal-subtitle">Esta acción es irreversible y eliminará todos los datos.</p>
       </div>
 
-      <button type="button" class="btn-close" (click)="close()" [disabled]="isDeleting" aria-label="Cerrar">
+      <button id="btn-cerrar-modal-eliminar" type="button" class="btn-close" (click)="close()" [disabled]="isDeleting" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -51,6 +51,7 @@
     <!-- Footer -->
     <div class="modal-footer">
       <app-custom-button
+        id="btn-cancelar-eliminar-proyecto"
         type="button"
         variant="secondary"
         text="Cancelar"
@@ -58,6 +59,7 @@
         [disabled]="isDeleting"
       ></app-custom-button>
       <app-custom-button
+        id="btn-confirmar-eliminar-proyecto"
         type="button"
         variant="danger"
         text="Sí, eliminar proyecto"

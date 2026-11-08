@@ -9,7 +9,7 @@
       </span>
     </div>
 
-    <button type="button" class="btn-create" (click)="openCreateModal()">
+    <button id="btn-crear-proyecto" type="button" class="btn-create" (click)="openCreateModal()">
       <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -43,7 +43,7 @@
       <line x1="12" y1="16" x2="12.01" y2="16"></line>
     </svg>
     <p class="error-text">{{ errorMessage }}</p>
-    <button type="button" class="btn-retry" (click)="loadProyectos()">Reintentar</button>
+    <button id="btn-reintentar-carga" type="button" class="btn-retry" (click)="loadProyectos()">Reintentar</button>
   </div>
 
   <!-- Estado: Vacío Global (Sin proyectos registrados) -->
@@ -56,7 +56,7 @@
     </div>
     <h3 class="empty-title">Aún no tienes proyectos</h3>
     <p class="empty-description">Comienza creando tu primer diagrama de clases conceptual para diseñar tu base de datos.</p>
-    <button type="button" class="btn-create-empty" (click)="openCreateModal()">
+    <button id="btn-crear-primer-proyecto" type="button" class="btn-create-empty" (click)="openCreateModal()">
       <span>Crear mi primer proyecto</span>
     </button>
   </div>
@@ -72,7 +72,7 @@
     </div>
     <h3 class="search-empty-title">Sin resultados de búsqueda</h3>
     <p class="search-empty-text">No se encontró ningún proyecto que coincida con "<strong>{{ searchTerm }}</strong>".</p>
-    <button type="button" class="btn-clear-search" (click)="onClearSearch()">
+    <button id="btn-limpiar-busqueda" type="button" class="btn-clear-search" (click)="onClearSearch()">
       Limpiar búsqueda
     </button>
   </div>

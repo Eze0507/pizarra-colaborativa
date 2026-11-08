@@ -48,6 +48,9 @@ export class AgenteSeniorService {
   private readonly _maxCaracteres$ = new BehaviorSubject<number>(2000);
   public readonly maxCaracteres$ = this._maxCaracteres$.asObservable();
 
+  private readonly _usarIaLocal$ = new BehaviorSubject<boolean>(false);
+  public readonly usarIaLocal$ = this._usarIaLocal$.asObservable();
+
   private readonly _consultaRevertida$ = new Subject<string>();
   public readonly consultaRevertida$ = this._consultaRevertida$.asObservable();
 
@@ -115,12 +118,20 @@ export class AgenteSeniorService {
   }
 
   /**
+   * Actualiza la preferencia del interruptor 'IA local' para el Agente Senior.
+   */
+  public setUsarIaLocal(valor: boolean): void {
+    this._usarIaLocal$.next(valor);
+  }
+
+  /**
    * Envía una consulta al Agente Senior Colaborativo validando longitud y disponibilidad de la cola.
    */
   public enviarConsulta(
     proyectoId: number,
     contenido: string,
-    contextoDiagrama: ContextoDiagramaIA
+    contextoDiagrama: ContextoDiagramaIA,
+    usarIaLocal: boolean = this._usarIaLocal$.getValue()
   ): Observable<EnviarConsultaAgenteSeniorRespuesta> {
     const url = `${environment.apiUrl}/asistente/proyectos/${proyectoId}/agente-senior/`;
     this._enviandoConsulta$.next(true);
@@ -128,7 +139,8 @@ export class AgenteSeniorService {
     return this.http
       .post<EnviarConsultaAgenteSeniorRespuesta>(url, {
         contenido: contenido.trim(),
-        contexto_diagrama: contextoDiagrama
+        contexto_diagrama: contextoDiagrama,
+        usar_ia_local: usarIaLocal
       })
       .pipe(
         tap((resp: EnviarConsultaAgenteSeniorRespuesta) => {

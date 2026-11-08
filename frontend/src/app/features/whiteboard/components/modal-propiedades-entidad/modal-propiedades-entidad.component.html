@@ -44,14 +44,14 @@
           <span *ngIf="errorNombre" class="field-error">{{ errorNombre }}</span>
         </div>
 
-        <div class="form-group campo-estado">
+        <div class="form-group campo-clasificador">
           <label class="form-label" for="tipo-clasificador">Clasificador UML</label>
           <select id="tipo-clasificador" class="form-select" [(ngModel)]="tipoClasificador">
             <option value="clase">Clase</option>
             <option value="entidad_persistente">Entidad persistente</option>
             <option value="interfaz">Interfaz</option>
           </select>
-          <label *ngIf="tipoClasificador !== 'interfaz'" class="toggle-nulo-label">
+          <label *ngIf="tipoClasificador !== 'interfaz'" class="check-inline-label">
             <input type="checkbox" [(ngModel)]="abstracto" /> Abstracta
           </label>
         </div>
@@ -106,7 +106,7 @@
                 <th class="col-pk" title="Clave Primaria">PK</th>
                 <th class="col-nombre">Nombre de Columna</th>
                 <th class="col-tipo">Tipo de Dato</th>
-                <th>UML</th>
+                <th class="col-uml">UML</th>
                 <th class="col-nulo" title="Permite valores nulos">¿Nulo?</th>
                 <th class="col-acciones"></th>
               </tr>
@@ -150,11 +150,14 @@
                   </select>
                 </td>
 
-                <td>
-                  <select class="form-select" [(ngModel)]="attr.visibilidad">
+                <!-- UML (Visibilidad + Static) -->
+                <td class="col-uml">
+                  <select class="form-select select-uml input-mono" [(ngModel)]="attr.visibilidad">
                     <option *ngFor="let v of visibilidades" [value]="v">{{ v }}</option>
                   </select>
-                  <label><input type="checkbox" [(ngModel)]="attr.es_estatico" /> static</label>
+                  <label class="check-inline-label">
+                    <input type="checkbox" [(ngModel)]="attr.es_estatico" /> static
+                  </label>
                 </td>
 
                 <!-- Nullable Toggle -->
@@ -199,11 +202,11 @@
         <div *ngFor="let op of operaciones; let oi = index" class="tabla-atributos-wrapper" style="padding: 10px; margin-bottom: 8px">
           <div class="seccion-general">
             <input class="form-input input-mono" [(ngModel)]="op.nombre" placeholder="nombreOperacion" />
-            <select class="form-select" [(ngModel)]="op.visibilidad"><option *ngFor="let v of visibilidades" [value]="v">{{ v }}</option></select>
+            <select class="form-select select-uml input-mono" [(ngModel)]="op.visibilidad"><option *ngFor="let v of visibilidades" [value]="v">{{ v }}</option></select>
             <input class="form-input input-mono" [(ngModel)]="op.tipo_retorno" placeholder="void" />
             <select class="form-select" [(ngModel)]="op.retorno_referencia_id"><option [ngValue]="null">Retorno simple</option><option *ngFor="let c of clasificadores" [ngValue]="c.id">{{ c.nombre }}</option></select>
-            <label><input type="checkbox" [(ngModel)]="op.es_estatico" /> static</label>
-            <label><input type="checkbox" [(ngModel)]="op.es_abstracto" /> abstract</label>
+            <label class="check-inline-label"><input type="checkbox" [(ngModel)]="op.es_estatico" /> static</label>
+            <label class="check-inline-label"><input type="checkbox" [(ngModel)]="op.es_abstracto" /> abstract</label>
             <button type="button" class="btn-eliminar-fila" (click)="eliminarOperacion(oi)">Eliminar</button>
           </div>
           <div *ngFor="let p of op.parametros; let pi = index" class="seccion-general">

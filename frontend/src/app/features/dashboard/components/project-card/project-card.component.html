@@ -1,4 +1,4 @@
-<article class="project-card" (click)="openProject()">
+<article id="card-proyecto" class="project-card" (click)="openProject()">
   <div class="card-header">
     <div class="code-badge">{{ proyecto.codigo }}</div>
     <span class="updated-time" [title]="proyecto.fecha_actualizacion">
@@ -24,6 +24,7 @@
     <div class="card-actions">
       <button
         *ngIf="isOwner"
+        id="btn-eliminar-proyecto"
         type="button"
         class="btn-delete"
         (click)="onDeleteProject($event)"
@@ -38,7 +39,7 @@
         </svg>
       </button>
 
-      <button type="button" class="btn-open" (click)="openProject(); $event.stopPropagation()">
+      <button id="btn-abrir-proyecto" type="button" class="btn-open" (click)="openProject(); $event.stopPropagation()">
         <span>Abrir</span>
         <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="5" y1="12" x2="19" y2="12"></line>

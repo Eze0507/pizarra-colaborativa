@@ -1,9 +1,11 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone, inject } from '@angular/core';
 import { BehaviorSubject, Subject } from 'rxjs';
 import * as joint from '@joint/core';
 
 @Injectable()
 export class WhiteboardCameraService {
+  private readonly ngZone = inject(NgZone);
+
   private paper: joint.dia.Paper | null = null;
   private lienzoContainer: HTMLElement | null = null;
 
@@ -21,6 +23,7 @@ export class WhiteboardCameraService {
   private pendingPanDy = 0;
 
   private rafZoomId: number | null = null;
+  private rafAnimZoomId: number | null = null;
   private targetScale = 1;
   private zoomPivotClient = { x: 0, y: 0 };
   private debounceModalesTimer: ReturnType<typeof setTimeout> | null = null;
@@ -38,15 +41,19 @@ export class WhiteboardCameraService {
     this.lienzoContainer = container;
     this.targetScale = paper.scale().sx || 1;
 
-    container.addEventListener('wheel', this.onWheelHandler, { passive: false });
-    window.addEventListener('mousemove', this.onWindowMouseMoveRef);
-    window.addEventListener('mouseup', this.onWindowMouseUpRef);
+    this.ngZone.runOutsideAngular(() => {
+      container.addEventListener('wheel', this.onWheelHandler, { passive: false });
+    });
   }
 
   public desconectar(): void {
     if (this.rafZoomId !== null) {
       cancelAnimationFrame(this.rafZoomId);
       this.rafZoomId = null;
+    }
+    if (this.rafAnimZoomId !== null) {
+      cancelAnimationFrame(this.rafAnimZoomId);
+      this.rafAnimZoomId = null;
     }
     if (this.rafPanId !== null) {
       cancelAnimationFrame(this.rafPanId);
@@ -61,12 +68,13 @@ export class WhiteboardCameraService {
     }
     window.removeEventListener('mousemove', this.onWindowMouseMoveRef);
     window.removeEventListener('mouseup', this.onWindowMouseUpRef);
+    this.isPanning = false;
     this.paper = null;
     this.lienzoContainer = null;
   }
 
   public iniciarPaneo(evt: MouseEvent): void {
-    this.cerrarModales$.next();
+    if (this.isPanning) return;
     this.isPanning = true;
     this.panStartX = evt.clientX;
     this.panStartY = evt.clientY;
@@ -75,6 +83,10 @@ export class WhiteboardCameraService {
     if (this.lienzoContainer) {
       this.lienzoContainer.style.cursor = 'grabbing';
     }
+    this.ngZone.runOutsideAngular(() => {
+      window.addEventListener('mousemove', this.onWindowMouseMoveRef, { passive: true });
+      window.addEventListener('mouseup', this.onWindowMouseUpRef, { passive: true });
+    });
   }
 
   private onWindowMouseMove(evt: MouseEvent): void {
@@ -102,6 +114,8 @@ export class WhiteboardCameraService {
   private onWindowMouseUp(): void {
     if (this.isPanning) {
       this.isPanning = false;
+      window.removeEventListener('mousemove', this.onWindowMouseMoveRef);
+      window.removeEventListener('mouseup', this.onWindowMouseUpRef);
       if (this.lienzoContainer) {
         this.lienzoContainer.style.cursor = 'default';
       }
@@ -112,15 +126,20 @@ export class WhiteboardCameraService {
     evt.preventDefault();
     if (!this.paper) return;
 
+    if (this.rafAnimZoomId !== null) {
+      cancelAnimationFrame(this.rafAnimZoomId);
+      this.rafAnimZoomId = null;
+    }
+
     // Cerrar modales una sola vez al inicio del gesto de zoom
     if (!this.debounceModalesTimer) {
-      this.cerrarModales$.next();
+      this.ngZone.run(() => this.cerrarModales$.next());
     } else {
       clearTimeout(this.debounceModalesTimer);
     }
     this.debounceModalesTimer = setTimeout(() => {
       this.debounceModalesTimer = null;
-    }, 200);
+    }, 250);
 
     let deltaY = evt.deltaY;
     if (evt.deltaMode === 1) {
@@ -153,7 +172,7 @@ export class WhiteboardCameraService {
 
         const nuevoNivel = Math.round(this.targetScale * 100);
         if (nuevoNivel !== this._zoomNivel$.getValue()) {
-          this._zoomNivel$.next(nuevoNivel);
+          this.ngZone.run(() => this._zoomNivel$.next(nuevoNivel));
         }
       });
     }
@@ -178,40 +197,51 @@ export class WhiteboardCameraService {
     if (!this.paper || !this.lienzoContainer) return;
     this.cerrarModales$.next();
 
+    if (this.rafAnimZoomId !== null) {
+      cancelAnimationFrame(this.rafAnimZoomId);
+      this.rafAnimZoomId = null;
+    }
+
     const startScale = this.paper.scale().sx;
-    const endScale = Math.min(Math.max(startScale * factor, 0.2), 3.0);
+    const baseScale = this.targetScale && Math.abs(this.targetScale - startScale) < 0.3 ? this.targetScale : startScale;
+    const endScale = Math.min(Math.max(baseScale * factor, 0.2), 3.0);
     if (Math.abs(endScale - startScale) < 0.005) return;
+
+    this.targetScale = endScale;
 
     const rect = this.lienzoContainer.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
+    const centerLocal = this.paper.clientToLocalPoint({ x: centerX, y: centerY });
 
     const startTime = performance.now();
-    const duration = 120; // 120ms: transición ultra rápida y fluida
+    const duration = 110;
 
-    const step = (now: number) => {
-      if (!this.paper) return;
-      const progress = Math.min((now - startTime) / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      const current = startScale + (endScale - startScale) * ease;
+    this.ngZone.runOutsideAngular(() => {
+      const step = (now: number) => {
+        if (!this.paper) {
+          this.rafAnimZoomId = null;
+          return;
+        }
+        const progress = Math.min((now - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const current = startScale + (endScale - startScale) * ease;
 
-      const centerLocal = this.paper.clientToLocalPoint({ x: centerX, y: centerY });
-      this.paper.scaleUniformAtPoint(current, centerLocal);
-      this.targetScale = current;
+        this.paper.scaleUniformAtPoint(current, centerLocal);
 
-      const nuevoNivel = Math.round(current * 100);
-      if (nuevoNivel !== this._zoomNivel$.getValue()) {
-        this._zoomNivel$.next(nuevoNivel);
-      }
+        if (progress < 1) {
+          this.rafAnimZoomId = requestAnimationFrame(step);
+        } else {
+          this.rafAnimZoomId = null;
+          const nivelFinal = Math.round(endScale * 100);
+          if (nivelFinal !== this._zoomNivel$.getValue()) {
+            this.ngZone.run(() => this._zoomNivel$.next(nivelFinal));
+          }
+        }
+      };
 
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        this._zoomNivel$.next(Math.round(endScale * 100));
-      }
-    };
-
-    requestAnimationFrame(step);
+      this.rafAnimZoomId = requestAnimationFrame(step);
+    });
   }
 
   public calcularCentroVisible(): { x: number; y: number } {

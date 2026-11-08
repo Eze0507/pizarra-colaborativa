@@ -5,7 +5,7 @@
         <h2 class="modal-title">Nuevo Proyecto</h2>
         <p class="modal-subtitle">Crea un espacio colaborativo para el diseño conceptual de tu base de datos</p>
       </div>
-      <button type="button" class="btn-close" (click)="close()" [disabled]="isSubmitting" aria-label="Cerrar">
+      <button id="btn-cerrar-modal-crear" type="button" class="btn-close" (click)="close()" [disabled]="isSubmitting" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -48,6 +48,7 @@
 
       <div class="modal-footer">
         <app-custom-button
+          id="btn-cancelar-crear-proyecto"
           type="button"
           variant="secondary"
           text="Cancelar"
@@ -55,6 +56,7 @@
           [disabled]="isSubmitting"
         ></app-custom-button>
         <app-custom-button
+          id="btn-confirmar-crear-proyecto"
           type="submit"
           variant="primary"
           text="Crear proyecto"
