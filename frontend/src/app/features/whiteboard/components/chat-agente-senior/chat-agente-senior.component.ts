@@ -50,6 +50,7 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
   public cargandoHistorial = false;
   public enviandoConsulta = false;
   public maxCaracteres = 2000;
+  public usarIaLocal = false;
   public textoConsulta = '';
   public errorValidacionLocal: string | null = null;
   public mensajesSinLeer = 0;
@@ -100,12 +101,28 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  public toggleIaLocal(): void {
+    this.usarIaLocal = !this.usarIaLocal;
+    this.agenteSeniorService.setUsarIaLocal(this.usarIaLocal);
+  }
+
   public onInputCambio(): void {
     if (this.textoConsulta.length > this.maxCaracteres) {
       this.errorValidacionLocal = `La consulta supera el límite máximo de ${this.maxCaracteres} caracteres.`;
     } else {
       this.errorValidacionLocal = null;
     }
+    this.ajustarAlturaInput();
+  }
+
+  public ajustarAlturaInput(): void {
+    const el = this.seniorInputRef?.nativeElement;
+    if (!el) return;
+    el.style.height = 'auto';
+    const maxAlto = 116;
+    const scrollH = el.scrollHeight;
+    el.style.height = `${Math.min(Math.max(24, scrollH), maxAlto)}px`;
+    el.style.overflowY = scrollH > maxAlto ? 'auto' : 'hidden';
   }
 
   public onEnterInput(event: Event): void {
@@ -133,9 +150,10 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
     this.errorValidacionLocal = null;
     const respaldoTexto = this.textoConsulta;
     this.textoConsulta = '';
+    setTimeout(() => this.ajustarAlturaInput());
 
     this.agenteSeniorService
-      .enviarConsulta(this.proyectoId, texto, this.contextoDiagrama)
+      .enviarConsulta(this.proyectoId, texto, this.contextoDiagrama, this.usarIaLocal)
       .subscribe({
         next: () => {
           this.scrollAlFondo();
@@ -143,6 +161,7 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
         },
         error: (err: HttpErrorResponse) => {
           this.textoConsulta = respaldoTexto;
+          setTimeout(() => this.ajustarAlturaInput());
           this.agenteSeniorService.actualizarColaDesdeError(err);
           const msg = this.agenteSeniorService.extraerMensajeError(
             err,
@@ -221,6 +240,13 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
     );
 
     this.subs.add(
+      this.agenteSeniorService.usarIaLocal$.subscribe(usarLocal => {
+        this.usarIaLocal = usarLocal;
+        this.cdr.detectChanges();
+      })
+    );
+
+    this.subs.add(
       this.agenteSeniorService.nuevoMensajeRecibido$.subscribe(msg => {
         if (!this.chatAbierto && !this.esMiMensaje(msg)) {
           this.mensajesSinLeer++;
@@ -234,6 +260,7 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
         if (!this.textoConsulta.trim()) {
           this.textoConsulta = textoOriginal;
           this.cdr.detectChanges();
+          setTimeout(() => this.ajustarAlturaInput());
         }
       })
     );

@@ -26,6 +26,9 @@
   --sb-tab-active-txt: #0077CC;
   --sb-estrella-bg: linear-gradient(135deg, #00A3FF 0%, #0077CC 100%);
   --sb-estrella-txt: #FFFFFF;
+  --sb-scroll-track: transparent;
+  --sb-scroll-thumb: #cbd5e1;
+  --sb-scroll-thumb-hover: #94a3b8;
 
   width: 280px;
   min-width: 280px;
@@ -40,7 +43,8 @@
   user-select: none;
 }
 
-.sidebar.sidebar-oscura {
+.sidebar.sidebar-oscura,
+:host-context(.whiteboard-root.modo-oscuro) .sidebar {
   --sb-bg: #1A1A1A;
   --sb-border: rgba(255, 255, 255, 0.08);
   --sb-divider: rgba(255, 255, 255, 0.06);
@@ -59,6 +63,9 @@
   --sb-tab-active-txt: #00A3FF;
   --sb-estrella-bg: linear-gradient(135deg, #00A3FF 0%, #0066CC 100%);
   --sb-estrella-txt: #FFFFFF;
+  --sb-scroll-track: #161616;
+  --sb-scroll-thumb: #333333;
+  --sb-scroll-thumb-hover: #4a4a4a;
 }
 
 .sidebar.sidebar-colapsado {
@@ -362,6 +369,48 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb-scroll-thumb) var(--sb-scroll-track);
+}
+
+/* Barras de desplazamiento personalizadas del sidebar (soporte webkit y firefox) */
+.sidebar-body,
+.validation-findings,
+.sidebar textarea,
+.sidebar * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb-scroll-thumb) var(--sb-scroll-track);
+}
+
+.sidebar-body::-webkit-scrollbar,
+.validation-findings::-webkit-scrollbar,
+.sidebar textarea::-webkit-scrollbar,
+.sidebar *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.sidebar-body::-webkit-scrollbar-track,
+.validation-findings::-webkit-scrollbar-track,
+.sidebar textarea::-webkit-scrollbar-track,
+.sidebar *::-webkit-scrollbar-track {
+  background: var(--sb-scroll-track);
+  border-radius: 4px;
+}
+
+.sidebar-body::-webkit-scrollbar-thumb,
+.validation-findings::-webkit-scrollbar-thumb,
+.sidebar textarea::-webkit-scrollbar-thumb,
+.sidebar *::-webkit-scrollbar-thumb {
+  background: var(--sb-scroll-thumb);
+  border-radius: 4px;
+}
+
+.sidebar-body::-webkit-scrollbar-thumb:hover,
+.validation-findings::-webkit-scrollbar-thumb:hover,
+.sidebar textarea::-webkit-scrollbar-thumb:hover,
+.sidebar *::-webkit-scrollbar-thumb:hover {
+  background: var(--sb-scroll-thumb-hover);
 }
 
 /* Selector de Pestañas */

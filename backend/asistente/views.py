@@ -75,13 +75,15 @@ class AgenteSeniorConversacionView(APIView):
 
         contenido = serializer.validated_data.get('contenido') or serializer.validated_data.get('mensaje')
         contexto_diagrama = serializer.validated_data.get('contexto_diagrama')
+        usar_ia_local = bool(serializer.validated_data.get('usar_ia_local', False))
 
         try:
             resultado = AgenteSeniorService.enviar_consulta(
                 proyecto_id=proyecto_id,
                 user=request.user,
                 contenido=contenido,
-                contexto_diagrama=contexto_diagrama
+                contexto_diagrama=contexto_diagrama,
+                usar_ia_local=usar_ia_local
             )
             return Response(resultado, status=status.HTTP_201_CREATED)
         except AsistenteServiceError as exc:

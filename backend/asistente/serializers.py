@@ -91,4 +91,9 @@ class EnviarConsultaAgenteSeniorSerializer(serializers.Serializer):
         default=None,
         help_text="Contexto opcional en memoria del lienzo actual (entidades, atributos y relaciones)."
     )
+    usar_ia_local = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Si es True, la consulta es respondida por el agente local; si es False, usa Gemini con respaldo en el agente local."
+    )
 

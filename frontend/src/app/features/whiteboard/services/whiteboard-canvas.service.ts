@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, NgZone, inject } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
 import * as joint from '@joint/core';
 
@@ -52,6 +52,7 @@ export interface EventoCardinalidadSolicitud {
 
 @Injectable()
 export class WhiteboardCanvasService {
+  private readonly ngZone              = inject(NgZone);
   private readonly cameraService       = inject(WhiteboardCameraService);
   private readonly entityService       = inject(WhiteboardEntityService);
   private readonly relationshipService = inject(WhiteboardRelationshipService);
@@ -120,96 +121,98 @@ export class WhiteboardCanvasService {
     const w = wrapper.clientWidth  || window.innerWidth  - 260;
     const h = wrapper.clientHeight || window.innerHeight;
 
-    this.paper = new joint.dia.Paper({
-      el:                container,
-      model:             this.graph,
-      width:             w,
-      height:            h,
-      gridSize:          16,
-      drawGrid:          { name: 'mesh', args: { color: this.tema.grid, thickness: 1 } },
-      background:        { color: this.tema.lienzo },
-      cellViewNamespace: joint.shapes,
-      clickThreshold:    5,
-      interactive:       { linkMove: false },
-      linkPinning:       false,
-      snapLinks:         { radius: 20 },
-      async:             true,
-      sorting:           joint.dia.Paper.sorting.APPROX,
-      highlighting: {
-        connecting: {
-          name: 'stroke',
-          options: {
-            padding: 3,
-            rx: 5,
-            ry: 5,
-            attrs: {
-              stroke: '#00A3FF',
-              'stroke-width': 2.5
+    this.ngZone.runOutsideAngular(() => {
+      this.paper = new joint.dia.Paper({
+        el:                container,
+        model:             this.graph,
+        width:             w,
+        height:            h,
+        gridSize:          16,
+        drawGrid:          { name: 'mesh', args: { color: this.tema.grid, thickness: 1 } },
+        background:        { color: this.tema.lienzo },
+        cellViewNamespace: joint.shapes,
+        clickThreshold:    8,
+        interactive:       { linkMove: false },
+        linkPinning:       false,
+        snapLinks:         { radius: 20 },
+        async:             true,
+        sorting:           joint.dia.Paper.sorting.APPROX,
+        highlighting: {
+          connecting: {
+            name: 'stroke',
+            options: {
+              padding: 3,
+              rx: 5,
+              ry: 5,
+              attrs: {
+                stroke: '#00A3FF',
+                'stroke-width': 2.5
+              }
             }
           }
+        },
+        defaultRouter: {
+          name: 'manhattan',
+          args: { step: 10, padding: 20, maxAllowedDirectionChange: 90, perpendicular: true }
+        },
+        defaultConnector:  { name: 'rounded', args: { radius: 8 } },
+        defaultLink: () => {
+          const colorLinea = this.modoOscuro ? '#EDEDED' : '#222222';
+          return new joint.shapes.standard.Link({
+            router: { name: 'manhattan', args: { step: 10, padding: 20, maxAllowedDirectionChange: 90, perpendicular: true } },
+            connector: { name: 'rounded', args: { radius: 8 } },
+            attrs: {
+              line: { stroke: colorLinea, strokeWidth: 1.8, strokeDasharray: '4 2', targetMarker: { type: 'none' } }
+            }
+          });
+        },
+        validateConnection: (
+          cellViewS: joint.dia.CellView,
+          magnetS: SVGElement,
+          cellViewT: joint.dia.CellView,
+          magnetT: SVGElement,
+          end?: 'source' | 'target'
+        ): boolean => {
+          if (!cellViewS || !cellViewT) return false;
+          if (!cellViewS.model.isElement() || !cellViewT.model.isElement()) return false;
+
+          const portS = magnetS?.getAttribute('port') || magnetS?.closest?.('[port]')?.getAttribute('port');
+          const portT = magnetT?.getAttribute('port') || magnetT?.closest?.('[port]')?.getAttribute('port');
+
+          // Al mover/reubicar un extremo existente mediante su arrowhead:
+          if (end === 'source' && !portS) return false;
+          if (end === 'target' && !portT) return false;
+          // Al crear un nuevo enlace desde cero (ambos extremos deben ser puertos):
+          if (!end && (!portS || !portT)) return false;
+
+          // Si es una relación reflexiva (consigo misma), no permitir conectar un puerto a sí mismo
+          if (cellViewS === cellViewT && portS && portT && portS === portT) return false;
+
+          return true;
         }
-      },
-      defaultRouter: {
-        name: 'manhattan',
-        args: { step: 10, padding: 20, maxAllowedDirectionChange: 90, perpendicular: true }
-      },
-      defaultConnector:  { name: 'rounded', args: { radius: 8 } },
-      defaultLink: () => {
-        const colorLinea = this.modoOscuro ? '#EDEDED' : '#222222';
-        return new joint.shapes.standard.Link({
-          router: { name: 'manhattan', args: { step: 10, padding: 20, maxAllowedDirectionChange: 90, perpendicular: true } },
-          connector: { name: 'rounded', args: { radius: 8 } },
-          attrs: {
-            line: { stroke: colorLinea, strokeWidth: 1.8, strokeDasharray: '4 2', targetMarker: { type: 'none' } }
-          }
-        });
-      },
-      validateConnection: (
-        cellViewS: joint.dia.CellView,
-        magnetS: SVGElement,
-        cellViewT: joint.dia.CellView,
-        magnetT: SVGElement,
-        end?: 'source' | 'target'
-      ): boolean => {
-        if (!cellViewS || !cellViewT) return false;
-        if (!cellViewS.model.isElement() || !cellViewT.model.isElement()) return false;
+      });
 
-        const portS = magnetS?.getAttribute('port') || magnetS?.closest?.('[port]')?.getAttribute('port');
-        const portT = magnetT?.getAttribute('port') || magnetT?.closest?.('[port]')?.getAttribute('port');
+      const observer = new ResizeObserver(() => {
+        const nw = wrapper.clientWidth;
+        const nh = wrapper.clientHeight;
+        if (nw > 0 && nh > 0) this.paper.setDimensions(nw, nh);
+      });
+      observer.observe(wrapper);
+      this.resizeObserver = observer;
 
-        // Al mover/reubicar un extremo existente mediante su arrowhead:
-        if (end === 'source' && !portS) return false;
-        if (end === 'target' && !portT) return false;
-        // Al crear un nuevo enlace desde cero (ambos extremos deben ser puertos):
-        if (!end && (!portS || !portT)) return false;
+      // Conectar sub-servicios
+      this.entityService.conectar(this.graph, this.paper, container);
+      this.relationshipService.conectar(this.graph, this.paper);
+      this.cameraService.conectar(this.paper, container);
 
-        // Si es una relación reflexiva (consigo misma), no permitir conectar un puerto a sí mismo
-        if (cellViewS === cellViewT && portS && portT && portS === portT) return false;
+      container.addEventListener('contextmenu', (evt: MouseEvent) => {
+        evt.preventDefault();
+      });
 
-        return true;
-      }
+      this.registrarEventosPaper();
     });
-
-    const observer = new ResizeObserver(() => {
-      const nw = wrapper.clientWidth;
-      const nh = wrapper.clientHeight;
-      if (nw > 0 && nh > 0) this.paper.setDimensions(nw, nh);
-    });
-    observer.observe(wrapper);
-    this.resizeObserver = observer;
-
-    // Conectar sub-servicios
-    this.entityService.conectar(this.graph, this.paper, container);
-    this.relationshipService.conectar(this.graph, this.paper);
-    this.cameraService.conectar(this.paper, container);
 
     this.cameraService.cerrarModales$.subscribe(() => this.cerrarModales$.next());
-
-    container.addEventListener('contextmenu', (evt: MouseEvent) => {
-      evt.preventDefault();
-    });
-
-    this.registrarEventosPaper();
   }
 
   public limpiar(): void {
@@ -594,8 +597,10 @@ export class WhiteboardCanvasService {
         );
 
         if (relActualizada) {
-          this.solicitudActualizarRelacion$.next(relActualizada);
-          this.snapshotRequerido$.next();
+          this.ngZone.run(() => {
+            this.solicitudActualizarRelacion$.next(relActualizada);
+            this.snapshotRequerido$.next();
+          });
         }
         return;
       }
@@ -626,55 +631,31 @@ export class WhiteboardCanvasService {
       const maxX = wrapperRect.width - menuAncho - 16;
       const maxY = wrapperRect.height - menuAlto - 16;
 
-      this.solicitudRelacion$.next({
-        origenId,
-        destinoId,
-        origenPuerto: sourcePort,
-        destinoPuerto: targetPort,
-        pos: { x: Math.max(16, Math.min(posX, maxX)), y: Math.max(16, Math.min(posY, maxY)) }
+      this.ngZone.run(() => {
+        this.solicitudRelacion$.next({
+          origenId,
+          destinoId,
+          origenPuerto: sourcePort,
+          destinoPuerto: targetPort,
+          pos: { x: Math.max(16, Math.min(posX, maxX)), y: Math.max(16, Math.min(posY, maxY)) }
+        });
       });
     });
 
-    this.paper.on('link:pointerdown', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
-      if (evt && evt.button !== 0) return;
-      const target = evt?.target as SVGElement;
-      if (target?.closest?.('[label-idx]')) return;
-      if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
-      evt?.stopPropagation?.();
-      this.deseleccionarCapsula();
-      this.cerrarModales$.next();
-      this.relationshipService.seleccionarEnlace(linkView);
-    });
-
-    this.paper.on('link:pointerclick', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
-      const target = evt?.target as SVGElement;
-      if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
-      const labelG = target?.closest?.('[label-idx]') as SVGGraphicsElement | null;
-      if (labelG) {
-        const esOrigen = labelG.classList.contains('capsula-origen') || labelG.getAttribute('data-extremo') === 'origen';
-        const esDestino = labelG.classList.contains('capsula-destino') || labelG.getAttribute('data-extremo') === 'destino';
-        if (esOrigen || esDestino) {
-          evt?.stopPropagation?.();
-          const extremo: 'origen' | 'destino' = esOrigen ? 'origen' : 'destino';
-          const relId = this.relationshipService.getRelacionIdPorLinkId(linkView.model.id);
-          if (relId !== null && this.lienzoContainer) {
-            const res = this.relationshipService.seleccionarCapsula(relId, extremo, this.modoOscuro, labelG, this.lienzoContainer);
-            if (res) this.solicitudCardinalidad$.next(res);
-          }
-        }
-      }
-    });
+    let ultimoMenuContextualTs = 0;
 
     const abrirMenuContextualRelacion = (linkView: joint.dia.LinkView, evt: MouseEvent) => {
+      const ahora = performance.now();
+      if (ahora - ultimoMenuContextualTs < 150) return;
+
       const target = evt?.target as SVGElement;
       if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
       if (target?.closest?.('.capsula-cardinalidad')) return;
       if (this.relationshipService.esConectorAuxiliar(linkView.model.id)) return;
 
+      ultimoMenuContextualTs = ahora;
       evt?.preventDefault?.();
       evt?.stopPropagation?.();
-      this.deseleccionarCapsula();
-      this.cerrarModales$.next();
 
       const relId = this.relationshipService.getRelacionIdPorLinkId(linkView.model.id);
       if (relId !== null && this.lienzoContainer) {
@@ -692,14 +673,51 @@ export class WhiteboardCanvasService {
         const rel = this.relationshipService.getRelacion(relId);
         const titulo = rel?.nombre_relacion || rel?.tipo || `Relación #${relId}`;
 
-        this.solicitudMenuContextual$.next({
-          tipo: 'relacion',
-          id: relId,
-          titulo,
-          pos: { x: Math.max(16, Math.min(posX, maxX)), y: Math.max(16, Math.min(posY, maxY)) }
+        this.ngZone.run(() => {
+          this.deseleccionarCapsula();
+          this.cerrarModales$.next();
+          this.solicitudMenuContextual$.next({
+            tipo: 'relacion',
+            id: relId,
+            titulo,
+            pos: { x: Math.max(16, Math.min(posX, maxX)), y: Math.max(16, Math.min(posY, maxY)) }
+          });
         });
       }
     };
+
+    this.paper.on('link:pointerdown', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
+      if (evt && evt.button !== 0) return;
+      const target = evt?.target as SVGElement;
+      if (target?.closest?.('[label-idx]')) return;
+      if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
+      this.deseleccionarCapsula();
+      this.ngZone.run(() => this.cerrarModales$.next());
+      this.relationshipService.seleccionarEnlace(linkView);
+    });
+
+    this.paper.on('link:pointerclick', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
+      const target = evt?.target as SVGElement;
+      if (target?.closest?.('.source-arrowhead') || target?.closest?.('.target-arrowhead')) return;
+      const labelG = target?.closest?.('[label-idx]') as SVGGraphicsElement | null;
+      if (labelG) {
+        const esOrigen = labelG.classList.contains('capsula-origen') || labelG.getAttribute('data-extremo') === 'origen';
+        const esDestino = labelG.classList.contains('capsula-destino') || labelG.getAttribute('data-extremo') === 'destino';
+        if (esOrigen || esDestino) {
+          evt?.stopPropagation?.();
+          const extremo: 'origen' | 'destino' = esOrigen ? 'origen' : 'destino';
+          const relId = this.relationshipService.getRelacionIdPorLinkId(linkView.model.id);
+          if (relId !== null && this.lienzoContainer) {
+            const res = this.relationshipService.seleccionarCapsula(relId, extremo, this.modoOscuro, labelG, this.lienzoContainer);
+            if (res) this.ngZone.run(() => this.solicitudCardinalidad$.next(res));
+          }
+          return;
+        }
+      }
+      if (evt?.detail >= 2) {
+        abrirMenuContextualRelacion(linkView, evt);
+      }
+    });
 
     this.paper.on('link:pointerdblclick', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
       abrirMenuContextualRelacion(linkView, evt);
@@ -709,13 +727,18 @@ export class WhiteboardCanvasService {
       abrirMenuContextualRelacion(linkView, evt);
     });
 
+    let posInicialElemento: { id: number; x: number; y: number } | null = null;
+    let elementoArrastrado = false;
+
     this.paper.on('element:pointerdown', (view: joint.dia.ElementView, evt: MouseEvent) => {
       if (evt && evt.button !== 0) return;
-      this.cerrarModales$.next();
       this.deseleccionarEnlace();
       this.deseleccionarCapsula();
+      this.ngZone.run(() => this.cerrarModales$.next());
       const entidadId = this.entityService.getEntidadIdPorCeldaId(view.model.id as string);
-      if (entidadId !== undefined) this.bloquearEntidadLocal$.next(entidadId);
+      const pos = view.model.position();
+      posInicialElemento = entidadId !== undefined ? { id: entidadId, x: pos.x, y: pos.y } : null;
+      elementoArrastrado = false;
     });
 
     let ultimoEnvioMove = 0;
@@ -723,6 +746,13 @@ export class WhiteboardCanvasService {
       const entidadId = this.entityService.getEntidadIdPorCeldaId(view.model.id as string);
       const pos = view.model.position();
       if (entidadId !== undefined) {
+        if (!elementoArrastrado) {
+          const dx = posInicialElemento ? Math.abs(pos.x - posInicialElemento.x) : 0;
+          const dy = posInicialElemento ? Math.abs(pos.y - posInicialElemento.y) : 0;
+          if (dx < 1 && dy < 1) return;
+          elementoArrastrado = true;
+          this.ngZone.run(() => this.bloquearEntidadLocal$.next(entidadId));
+        }
         const ent = this.entityService.getEntidad(entidadId);
         if (ent) {
           ent.coord_x = pos.x;
@@ -737,23 +767,28 @@ export class WhiteboardCanvasService {
     });
 
     this.paper.on('element:pointerup', (view: joint.dia.ElementView) => {
+      const fueArrastrado = elementoArrastrado;
+      elementoArrastrado = false;
+      posInicialElemento = null;
+      if (!fueArrastrado) return;
+
       const entidadId = this.entityService.getEntidadIdPorCeldaId(view.model.id as string);
       const pos = view.model.position();
-      if (entidadId !== undefined) {
-        const ent = this.entityService.getEntidad(entidadId);
-        if (ent) {
-          ent.coord_x = pos.x;
-          ent.coord_y = pos.y;
+      this.ngZone.run(() => {
+        if (entidadId !== undefined) {
+          const ent = this.entityService.getEntidad(entidadId);
+          if (ent) {
+            ent.coord_x = pos.x;
+            ent.coord_y = pos.y;
+          }
+          this.moverEntidadFinLocal$.next({ entidadId, x: pos.x, y: pos.y });
+          this.desbloquearEntidadLocal$.next(entidadId);
         }
-        this.moverEntidadFinLocal$.next({ entidadId, x: pos.x, y: pos.y });
-        this.desbloquearEntidadLocal$.next(entidadId);
-      }
-      this.snapshotRequerido$.next();
+        this.snapshotRequerido$.next();
+      });
     });
 
     const manejarClickElemento = (cellView: joint.dia.ElementView, evt: MouseEvent, _x?: number, y?: number) => {
-      this.cerrarModales$.next();
-
       const entidadId = this.entityService.getEntidadIdPorCeldaId(cellView.model.id as string);
       if (entidadId === undefined) return;
 
@@ -767,39 +802,25 @@ export class WhiteboardCanvasService {
         : this.paper.clientToLocalPoint({ x: evt?.clientX ?? 0, y: evt?.clientY ?? 0 }).y;
       const relY = clickY - pos.y;
 
-      if (relY <= ALTO_HEADER) {
-        this.solicitudEditorNombre$.next(entidadId);
-      } else {
-        const numAtributos = entidad.atributos?.length ?? 0;
-        const rowRelY = relY - ALTO_HEADER;
-        const rowIndex = Math.floor((rowRelY - 8) / ALTO_ATRIBUTO);
-
-        if (rowIndex >= 0 && rowIndex < numAtributos) {
-          this.solicitudEditorAtributo$.next({ entidadId, index: rowIndex });
+      this.ngZone.run(() => {
+        this.cerrarModales$.next();
+        if (relY <= ALTO_HEADER) {
+          this.solicitudEditorNombre$.next(entidadId);
         } else {
-          this.solicitudEditorNuevoAtributo$.next(entidadId);
+          const numAtributos = entidad.atributos?.length ?? 0;
+          const rowRelY = relY - ALTO_HEADER;
+          const rowIndex = Math.floor((rowRelY - 8) / ALTO_ATRIBUTO);
+
+          if (rowIndex >= 0 && rowIndex < numAtributos) {
+            this.solicitudEditorAtributo$.next({ entidadId, index: rowIndex });
+          } else {
+            this.solicitudEditorNuevoAtributo$.next(entidadId);
+          }
         }
-      }
+      });
     };
 
     let timerClickElemento: ReturnType<typeof setTimeout> | null = null;
-
-    this.paper.on('element:pointerclick', (cellView: joint.dia.ElementView, evt: MouseEvent, _x?: number, y?: number) => {
-      if (evt?.detail > 1) {
-        if (timerClickElemento) {
-          clearTimeout(timerClickElemento);
-          timerClickElemento = null;
-        }
-        return;
-      }
-      if (timerClickElemento) {
-        clearTimeout(timerClickElemento);
-      }
-      timerClickElemento = setTimeout(() => {
-        timerClickElemento = null;
-        manejarClickElemento(cellView, evt, _x, y);
-      }, 220);
-    });
 
     const abrirMenuContextualEntidad = (cellView: joint.dia.ElementView, evt: MouseEvent) => {
       if (timerClickElemento) {
@@ -807,11 +828,14 @@ export class WhiteboardCanvasService {
         timerClickElemento = null;
       }
 
+      const ahora = performance.now();
+      if (ahora - ultimoMenuContextualTs < 150) return;
+      ultimoMenuContextualTs = ahora;
+
       evt?.preventDefault?.();
       evt?.stopPropagation?.();
       this.deseleccionarCapsula();
       this.deseleccionarEnlace();
-      this.cerrarModales$.next();
 
       const entidadId = this.entityService.getEntidadIdPorCeldaId(cellView.model.id as string);
       if (entidadId === undefined || !this.lienzoContainer) return;
@@ -830,13 +854,30 @@ export class WhiteboardCanvasService {
       const maxX = wrapperRect.width - menuAncho - 16;
       const maxY = wrapperRect.height - menuAlto - 16;
 
-      this.solicitudMenuContextual$.next({
-        tipo: 'entidad',
-        id: entidadId,
-        titulo: entidad.nombre || `Entidad #${entidadId}`,
-        pos: { x: Math.max(16, Math.min(posX, maxX)), y: Math.max(16, Math.min(posY, maxY)) }
+      this.ngZone.run(() => {
+        this.cerrarModales$.next();
+        this.solicitudMenuContextual$.next({
+          tipo: 'entidad',
+          id: entidadId,
+          titulo: entidad.nombre || `Entidad #${entidadId}`,
+          pos: { x: Math.max(16, Math.min(posX, maxX)), y: Math.max(16, Math.min(posY, maxY)) }
+        });
       });
     };
+
+    this.paper.on('element:pointerclick', (cellView: joint.dia.ElementView, evt: MouseEvent, _x?: number, y?: number) => {
+      if (evt?.detail >= 2) {
+        abrirMenuContextualEntidad(cellView, evt);
+        return;
+      }
+      if (timerClickElemento) {
+        clearTimeout(timerClickElemento);
+      }
+      timerClickElemento = setTimeout(() => {
+        timerClickElemento = null;
+        manejarClickElemento(cellView, evt, _x, y);
+      }, 200);
+    });
 
     this.paper.on('element:pointerdblclick', (cellView: joint.dia.ElementView, evt: MouseEvent) => {
       abrirMenuContextualEntidad(cellView, evt);
@@ -848,7 +889,7 @@ export class WhiteboardCanvasService {
 
     this.paper.on('blank:contextmenu', (evt: MouseEvent) => {
       evt?.preventDefault?.();
-      this.cerrarModales$.next();
+      this.ngZone.run(() => this.cerrarModales$.next());
     });
 
     this.paper.on('blank:pointerdown', (evt: MouseEvent) => {
@@ -856,7 +897,7 @@ export class WhiteboardCanvasService {
       this.deseleccionarEnlace();
       this.deseleccionarCapsula();
       this.relationshipService.cancelarRelacionPendiente();
-      this.cerrarModales$.next();
+      this.ngZone.run(() => this.cerrarModales$.next());
       this.cameraService.iniciarPaneo(evt);
     });
   }

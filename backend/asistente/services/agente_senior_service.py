@@ -70,6 +70,8 @@ class AgenteSeniorService:
 
     # Caché ligero del último contexto del diagrama enviado desde el cliente por proyecto
     _contexto_diagrama_reciente: dict[int, dict] = {}
+    _preferencia_ia_local_por_mensaje: dict[int, bool] = {}
+    _preferencia_ia_local_por_proyecto: dict[int, bool] = {}
 
     @classmethod
     def _obtener_lock_proyecto(cls, proyecto_id: int) -> threading.Lock:
@@ -274,7 +276,8 @@ class AgenteSeniorService:
         proyecto_id: int,
         user,
         contenido: str | None,
-        contexto_diagrama: dict | None = None
+        contexto_diagrama: dict | None = None,
+        usar_ia_local: bool = False
     ) -> dict:
         """
         Flujo Principal Pasos 3–5, FA-01 Pasos 1–3 y Excepciones FE-03, FE-04, FE-05:
@@ -338,6 +341,10 @@ class AgenteSeniorService:
                 estado=estado_inicial,
                 contenido=contenido_limpio
             )
+
+            with cls._global_lock:
+                cls._preferencia_ia_local_por_mensaje[mensaje_usuario.id] = bool(usar_ia_local)
+                cls._preferencia_ia_local_por_proyecto[proyecto_id] = bool(usar_ia_local)
 
             estado_cola = cls.calcular_estado_cola(conversacion)
             mensaje_serializado = MensajeSerializer(
@@ -467,12 +474,20 @@ class AgenteSeniorService:
                     # Paso 6 / FA-01 Paso 5: Recopilar el contexto vigente en este instante
                     try:
                         # Paso 7 y 8: Enviar la consulta y el contexto al proveedor de IA
-                        # Primera opción: IA Local con Ollama (qwen2.5:3b en 0.0.0.0:11434).
-                        # Respaldo: Modelos comerciales de Google Gemini.
+                        # Según el interruptor "IA local":
+                        # - Si está activado (usar_ia_local=True): responde directamente con el agente local (Ollama).
+                        # - Si no está activado (usar_ia_local=False): responde con Gemini y si falla pasa al agente local como última opción.
+                        with cls._global_lock:
+                            usar_ia_local_msg = cls._preferencia_ia_local_por_mensaje.pop(
+                                mensaje_actual.id,
+                                cls._preferencia_ia_local_por_proyecto.get(proyecto_id, False)
+                            )
+
                         texto_respuesta = cls._generar_respuesta_agente_senior(
                             proyecto_id=proyecto_id,
                             conversacion_id=conversacion.id,
-                            mensaje_pregunta=mensaje_actual
+                            mensaje_pregunta=mensaje_actual,
+                            usar_ia_local=usar_ia_local_msg
                         )
 
                         # Paso 9: Registrar la respuesta generada en el historial y actualizar la consulta a «Respondido»
@@ -608,15 +623,22 @@ class AgenteSeniorService:
         cls,
         proyecto_id: int,
         conversacion_id: int,
-        mensaje_pregunta: Mensaje
+        mensaje_pregunta: Mensaje,
+        usar_ia_local: bool = False
     ) -> str:
         """
-        Intenta primero procesar la consulta con el modelo local de Ollama (qwen2.5:3b)
-        usando un prompt compacto adaptado a su ventana de contexto de 4096 tokens en CPU.
-        Si el motor local no está disponible o falla, utiliza como respaldo los modelos
-        comerciales de Google Gemini con el contexto extendido completo.
+        Resuelve la consulta según el estado del interruptor 'IA local':
+        - Si `usar_ia_local=True`: responde con el agente local de Ollama (qwen2.5:3b)
+          usando un prompt compacto adaptado a su ventana de contexto de 4096 tokens.
+        - Si `usar_ia_local=False` (por defecto): responde con los modelos comerciales de
+          Google Gemini usando el contexto extendido, y si Gemini tiene problemas pasa la
+          consulta al agente local de Ollama como última opción.
         """
-        try:
+        if usar_ia_local:
+            logger.info(
+                f"[AGENTE_SENIOR] Modo 'IA local' activado para consulta #{mensaje_pregunta.id} "
+                f"(proyecto #{proyecto_id}). Procesando directamente con el agente local (Ollama)..."
+            )
             prompt_local = cls.construir_prompt_con_contexto(
                 proyecto_id=proyecto_id,
                 conversacion_id=conversacion_id,
@@ -628,11 +650,8 @@ class AgenteSeniorService:
                 system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
                 temperature=0.3
             )
-        except Exception as ollama_exc:
-            logger.warning(
-                f"[AGENTE_SENIOR] Falló el modelo local Ollama ({ollama_exc}). "
-                "Usando modelos comerciales de Gemini como respaldo..."
-            )
+
+        try:
             prompt_completo = cls.construir_prompt_con_contexto(
                 proyecto_id=proyecto_id,
                 conversacion_id=conversacion_id,
@@ -643,6 +662,22 @@ class AgenteSeniorService:
                 contents=[prompt_completo],
                 system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
                 response_mime_type=None,
+                temperature=0.3
+            )
+        except Exception as gemini_exc:
+            logger.warning(
+                f"[AGENTE_SENIOR] Gemini presentó problemas ({gemini_exc}). "
+                "Pasando la pregunta al agente local Ollama como última opción..."
+            )
+            prompt_local = cls.construir_prompt_con_contexto(
+                proyecto_id=proyecto_id,
+                conversacion_id=conversacion_id,
+                mensaje_pregunta=mensaje_pregunta,
+                compacto_para_local=True
+            )
+            return OllamaProviderService.generar_contenido(
+                prompt=prompt_local,
+                system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
                 temperature=0.3
             )
 

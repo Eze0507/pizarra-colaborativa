@@ -148,6 +148,8 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
   // ── Estado Modales de Propiedades y Colaboradores ──
   public modalEntidadActivo = false;
   public entidadEditando: EntidadDiagrama | null = null;
+  public clasificadoresModal: EntidadDiagrama[] = [];
+  public contextoDiagramaIA: ContextoDiagramaIA = { entidades: [], relaciones: [] };
 
   public modalRelacionActivo = false;
   public relacionEditando: RelacionDiagrama | null = null;
@@ -224,6 +226,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
       this.canvasService.renderizarRelaciones(this.relacionesPendientes);
       this.relacionesPendientes = [];
     }
+    this.sincronizarContextoPlantilla();
   }
 
   @HostListener('window:beforeunload')
@@ -263,6 +266,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
           if (this.canvasService.estaListo) {
             this.canvasService.renderizarEntidades(datos.entidades);
             this.canvasService.renderizarRelaciones(datos.relaciones);
+            this.sincronizarContextoPlantilla();
           } else {
             this.entidadesPendientes = datos.entidades;
             this.relacionesPendientes = datos.relaciones;
@@ -318,6 +322,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
         if (accion === 'snapshot_guardado') {
           if (msg.exito !== false && msg.usuario_id === this.miUsuarioId && (msg.id_map || msg.rel_id_map || msg.attr_id_map || msg.operation_id_map || msg.parameter_id_map)) {
             this.canvasService.actualizarIdsSincronizados(msg.id_map, msg.rel_id_map, msg.attr_id_map, msg.operation_id_map, msg.parameter_id_map);
+            this.sincronizarContextoPlantilla();
           }
           if (
             msg.exito !== false && msg.usuario_id !== this.miUsuarioId &&
@@ -371,27 +376,45 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
             break;
           case 'crear_entidad':
           case 'entidad_creada':
-            if (msg.entidad) this.canvasService.crearCeldaRemota(msg.entidad);
+            if (msg.entidad) {
+              this.canvasService.crearCeldaRemota(msg.entidad);
+              this.sincronizarContextoPlantilla();
+            }
             break;
           case 'actualizar_entidad':
           case 'entidad_actualizada':
-            if (msg.entidad) this.canvasService.actualizarCeldaRemota(msg.entidad);
+            if (msg.entidad) {
+              this.canvasService.actualizarCeldaRemota(msg.entidad);
+              this.sincronizarContextoPlantilla();
+            }
             break;
           case 'eliminar_entidad':
           case 'entidad_eliminada':
-            if (msg.entidad_id !== undefined) this.canvasService.eliminarCeldaRemota(msg.entidad_id);
+            if (msg.entidad_id !== undefined) {
+              this.canvasService.eliminarCeldaRemota(msg.entidad_id);
+              this.sincronizarContextoPlantilla();
+            }
             break;
           case 'crear_relacion':
           case 'relacion_creada':
-            if (msg.relacion) this.canvasService.crearRelacionRemota(msg.relacion);
+            if (msg.relacion) {
+              this.canvasService.crearRelacionRemota(msg.relacion);
+              this.sincronizarContextoPlantilla();
+            }
             break;
           case 'actualizar_relacion':
           case 'relacion_actualizada':
-            if (msg.relacion) this.canvasService.actualizarRelacionRemota(msg.relacion);
+            if (msg.relacion) {
+              this.canvasService.actualizarRelacionRemota(msg.relacion);
+              this.sincronizarContextoPlantilla();
+            }
             break;
           case 'eliminar_relacion':
           case 'relacion_eliminada':
-            if (msg.relacion_id !== undefined) this.canvasService.eliminarRelacionRemota(msg.relacion_id);
+            if (msg.relacion_id !== undefined) {
+              this.canvasService.eliminarRelacionRemota(msg.relacion_id);
+              this.sincronizarContextoPlantilla();
+            }
             break;
         }
       })
@@ -425,7 +448,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.subscriptions.add(this.canvasService.snapshotRequerido$.subscribe(() => {
       if (this.puedeEditar) this.programarSnapshot();
     }));
-    this.subscriptions.add(this.canvasService.cerrarModales$.subscribe(() => this.cerrarTodosModales()));
+    this.subscriptions.add(this.canvasService.cerrarModales$.subscribe(() => this.cerrarModalesLocales()));
   }
 
   private recargarEstadoConfirmado(): void {
@@ -436,6 +459,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
         this.canvasService.limpiar();
         this.canvasService.renderizarEntidades(datos.entidades);
         this.canvasService.renderizarRelaciones(datos.relaciones);
+        this.sincronizarContextoPlantilla();
         this.cdr.detectChanges();
       },
       error: () => this.toastService.error('No se pudo recuperar el estado confirmado del diagrama.')
@@ -537,6 +561,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     if (ev.tipo === 'entidad') {
       const entidad = this.canvasService.getEntidad(ev.id);
       if (entidad) {
+        this.clasificadoresModal = this.canvasService.getEntidades();
         this.entidadEditando = JSON.parse(JSON.stringify(entidad));
         this.modalEntidadActivo = true;
       }
@@ -645,13 +670,18 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.canvasService.cancelarRelacionPendiente();
   }
 
+  private cerrarModalesLocales(): void {
+    this.canvasService.cancelarRelacionPendiente();
+    if (this.modalEntidadActivo || this.modalRelacionActivo || this.modalColaboradoresActivo) {
+      this.modalEntidadActivo = false;
+      this.modalRelacionActivo = false;
+      this.modalColaboradoresActivo = false;
+      this.cdr.detectChanges();
+    }
+  }
+
   private cerrarTodosModales(): void {
     this.canvasService.cerrarModales$.next();
-    this.canvasService.cancelarRelacionPendiente();
-    this.modalEntidadActivo = false;
-    this.modalRelacionActivo = false;
-    this.modalColaboradoresActivo = false;
-    this.cdr.detectChanges();
   }
 
   @HostListener('document:keydown.escape', ['$event'])
@@ -696,12 +726,13 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
       this.socketService.generarIdTemporal()
     );
     this.socketService.enviarCrearEntidad(nueva);
+    this.sincronizarContextoPlantilla();
     this.canvasService.solicitudEditorNombre$.next(nueva.id);
   }
 
   public onAgregarClaseAsociacion(): void {
     if (!this.puedeEditar) return;
-    this.toastService.info('Para modelar una Clase de Asociación (N:M): traza un enlace entre dos tablas y selecciona "Clase de Asociación (N:M)" en el menú.');
+    this.toastService.info('Para modelar una Clase de Asociación: traza un enlace entre dos tablas y selecciona "Clase de Asociación" en el menú.');
   }
 
   public onAgregarNota(): void {
@@ -716,6 +747,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     nueva.nombre = 'Nota / Comentario';
     this.canvasService.actualizarEntidadLocal(nueva);
     this.socketService.enviarCrearEntidad(nueva);
+    this.sincronizarContextoPlantilla();
     this.canvasService.solicitudEditorNombre$.next(nueva.id);
   }
 
@@ -949,6 +981,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
         this.socketService.generarIdTemporal()
       );
       this.socketService.enviarCrearEntidad(nueva);
+      this.sincronizarContextoPlantilla();
       this.canvasService.solicitudEditorNombre$.next(nueva.id);
     } else if (tipo === 'clase_asociacion') {
       this.onAgregarClaseAsociacion();
@@ -961,6 +994,7 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
       nueva.nombre = 'Nota / Comentario';
       this.canvasService.actualizarEntidadLocal(nueva);
       this.socketService.enviarCrearEntidad(nueva);
+      this.sincronizarContextoPlantilla();
       this.canvasService.solicitudEditorNombre$.next(nueva.id);
     }
   }
@@ -1003,9 +1037,19 @@ export class WhiteboardPage implements OnInit, OnDestroy, AfterViewInit {
     this.router.navigate(['/control']);
   }
 
+  private sincronizarContextoPlantilla(): void {
+    if (!this.canvasService.estaListo) return;
+    const entidades = this.canvasService.getEntidades();
+    const relaciones = this.canvasService.getRelaciones();
+    this.clasificadoresModal = entidades;
+    this.contextoDiagramaIA = this.asistenteIaService.extraerContextoDiagrama(entidades, relaciones);
+  }
+
   private programarSnapshot(): void {
     if (!this.puedeEditar) return;
     const datos = this.canvasService.obtenerSnapshotDatos();
+    this.clasificadoresModal = datos.entidades;
+    this.contextoDiagramaIA = this.asistenteIaService.extraerContextoDiagrama(datos.entidades, datos.relaciones);
     this.socketService.programarGuardarSnapshot(datos);
   }
 }
