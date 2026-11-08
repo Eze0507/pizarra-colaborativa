@@ -140,6 +140,63 @@ fieldset input[type='checkbox'] {
   cursor: pointer;
 }
 
+.advanced-section {
+  margin-top: 10px;
+  overflow: hidden;
+  background-color: #202020;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.advanced-toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 18px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  background-color: #202020;
+  color: #EDEDED;
+  text-align: left;
+  cursor: pointer;
+}
+
+.advanced-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advanced-summary {
+  color: #888888;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.advanced-chevron {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.2s ease;
+}
+
+.advanced-chevron.open {
+  transform: rotate(180deg);
+}
+
+.advanced-panel {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.advanced-panel fieldset {
+  margin-top: 14px;
+}
+
+.advanced-panel .option-message {
+  display: block;
+  margin-top: 8px;
+}
+
 .field-error,
 .server-error {
   color: #F87171;
@@ -274,6 +331,24 @@ button:disabled {
   color: #0F172A;
 }
 
+:host-context(.whiteboard-root:not(.modo-oscuro)) .advanced-section,
+:host-context(.whiteboard-root:not(.modo-oscuro)) .advanced-toggle {
+  background-color: #F8FAFC;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .advanced-toggle {
+  color: #0F172A;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .advanced-summary {
+  color: #64748B;
+}
+
+:host-context(.whiteboard-root:not(.modo-oscuro)) .advanced-panel {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
 :host-context(.whiteboard-root:not(.modo-oscuro)) .secondary {
   border-color: rgba(0, 0, 0, 0.15);
   color: #475569;
@@ -287,5 +362,19 @@ button:disabled {
 @media (max-width: 520px) {
   fieldset {
     grid-template-columns: 1fr;
+  }
+
+  .advanced-toggle {
+    grid-template-columns: 1fr 18px;
+  }
+
+  .advanced-summary {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .advanced-chevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 }
