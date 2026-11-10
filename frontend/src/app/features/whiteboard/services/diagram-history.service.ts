@@ -53,7 +53,7 @@ export class DiagramHistoryService {
       if (generation !== this.generation) return;
       // Una respuesta perdida se consulta con exactamente el mismo contenido/ID.
       const pending = this.pendingRequest;
-      const request = pending || { request_id: `history-${crypto.randomUUID()}`, expected_revision: this.socket.revisionActual, command };
+      const request = pending || { request_id: this.nuevoRequestId(), expected_revision: this.socket.revisionActual, command };
       this.pendingRequest = request;
       const result = await firstValueFrom(this.http.post<HistoryResult>(this.url, request).pipe(timeout(20_000)));
       if (generation !== this.generation || result.proyecto_id !== this.projectId) return;
@@ -82,5 +82,12 @@ export class DiagramHistoryService {
     this.busy$.next(false);
     this.cancelAssistant$.next();
   }
+
+  private nuevoRequestId(): string {
+    const cryptoApi = globalThis.crypto;
+    if (typeof cryptoApi?.randomUUID === 'function') return `history-${cryptoApi.randomUUID()}`;
+    return `history-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
   private get url(): string { return `${environment.apiUrl}/modelado/proyectos/${this.projectId}/historial/`; }
 }
