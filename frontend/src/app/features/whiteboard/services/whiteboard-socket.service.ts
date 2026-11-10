@@ -3,6 +3,7 @@ import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { BehaviorSubject, Subject, Subscription, timer, firstValueFrom, timeout } from 'rxjs';
 import { filter, switchMap, debounceTime } from 'rxjs/operators';
 import { TokenStorageService } from '../../../core/services/token-storage.service';
+import { environment } from '../../../../environments/environment';
 import { MensajeWS, EstadoConexion, AccionWS, EntidadDiagrama, RelacionDiagrama, UsuarioConectado } from '../interfaces/diagrama.interface';
 import { confirmacionCorresponde, esConflictoRevision, requestCorresponde } from '../utils/revision.utils';
 
@@ -88,8 +89,7 @@ export class WhiteboardSocketService {
     this._estadoGuardado$.next('guardado');
     this._conflicto$.next(null);
 
-    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const wsUrl = `ws://${host}:8000/ws/pizarra/${proyectoId}/?token=${token}`;
+    const wsUrl = `${environment.wsUrl}/ws/pizarra/${proyectoId}/?token=${token}`;
     this._estado$.next('conectando');
 
     // Ejecutar fuera de la zona Angular para evitar deteccion de cambios excesiva

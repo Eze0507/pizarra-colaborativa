@@ -3,6 +3,7 @@ node_modules/
 dist/
 out-tsc/
 .angular/
+
 .vscode/
 
 *.log

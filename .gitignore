@@ -1,4 +1,8 @@
 .env
+/.env.production
+
+# Documentos locales de auditoría; no se publican en el repositorio.
+AUDITORIA_*.md
 venv/
 env/
 .venv/
