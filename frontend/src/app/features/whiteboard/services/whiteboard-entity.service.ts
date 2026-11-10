@@ -91,7 +91,7 @@ export class WhiteboardEntityService {
       this.celdaIdAEntidadId.delete(celdaPrevia.id as string);
     }
 
-    const ancho = this.calcularAnchoDinamico(entidad);
+    const ancho = entidad.ancho > 0 ? entidad.ancho : this.calcularAnchoDinamico(entidad);
     entidad.ancho = ancho;
     const numLineas = (entidad.atributos?.length ?? 0) + (entidad.operaciones?.length ?? 0) + 1;
     const alto = ALTO_HEADER + (numLineas * ALTO_ATRIBUTO) + ALTO_BOTON_AGREGAR + 14;
@@ -218,16 +218,16 @@ function generarGruposPuertos(tema: TemaColores) {
     this.celdas.set(entidad.id, celda);
     this.celdaIdAEntidadId.set(celda.id as string, entidad.id);
 
-    this.actualizarCeldaVisual(entidad, tema);
+    this.actualizarCeldaVisual(entidad, tema, true);
 
     return celda;
   }
 
-  public actualizarCeldaVisual(entidad: EntidadDiagrama, tema: TemaColores): void {
+  public actualizarCeldaVisual(entidad: EntidadDiagrama, tema: TemaColores, preservarAncho = false): void {
     const celda = this.celdas.get(entidad.id);
     if (!celda) return;
 
-    const ancho = this.calcularAnchoDinamico(entidad);
+    const ancho = preservarAncho && entidad.ancho > 0 ? entidad.ancho : Math.max(entidad.ancho || 0, this.calcularAnchoDinamico(entidad));
     entidad.ancho = ancho;
     const numLineas = (entidad.atributos?.length ?? 0) + (entidad.operaciones?.length ?? 0) + 1;
     const alto = ALTO_HEADER + (numLineas * ALTO_ATRIBUTO) + ALTO_BOTON_AGREGAR + 14;
@@ -330,11 +330,8 @@ function generarGruposPuertos(tema: TemaColores) {
   // ── Sincronización Remota ────────────────────────────────────────────────
 
   public moverCeldaRemota(id: number, x: number, y: number): void {
-    const ent = this.entidadesMap.get(id);
-    if (ent) {
-      ent.coord_x = x;
-      ent.coord_y = y;
-    }
+    // Presencia visual: no incorporar movimientos remotos a?n no confirmados
+    // en el siguiente autosave del usuario local.
     const celda = this.celdas.get(id);
     if (celda) {
       celda.position(x, y);
@@ -500,9 +497,8 @@ function generarGruposPuertos(tema: TemaColores) {
 
   public obtenerPosiciones(): Record<number, { x: number; y: number }> {
     const posiciones: Record<number, { x: number; y: number }> = {};
-    this.celdas.forEach((celda, id) => {
-      const pos = celda.position();
-      posiciones[id] = { x: Math.round(pos.x), y: Math.round(pos.y) };
+    this.entidadesMap.forEach((entidad, id) => {
+      posiciones[id] = { x: entidad.coord_x, y: entidad.coord_y };
     });
     return posiciones;
   }
@@ -510,12 +506,10 @@ function generarGruposPuertos(tema: TemaColores) {
   public getEntidades(): EntidadDiagrama[] {
     const lista: EntidadDiagrama[] = [];
     this.entidadesMap.forEach((ent, id) => {
-      const celda = this.celdas.get(id);
-      const pos = celda ? celda.position() : { x: ent.coord_x, y: ent.coord_y };
       lista.push({
         ...ent,
-        coord_x: Math.round(pos.x),
-        coord_y: Math.round(pos.y),
+        coord_x: ent.coord_x,
+        coord_y: ent.coord_y,
         ancho: ent.ancho,
         es_intermedia: ent.es_intermedia ?? false,
         atributos: ent.atributos ? ent.atributos.map(a => ({ ...a })) : [],

@@ -1,4 +1,5 @@
 from django.urls import path
+from .history_views import DiagramHistoryView
 from .views import (
     ProyectoListCreateView,
     ProyectoDetailView,
@@ -17,6 +18,7 @@ from .views import (
 app_name = 'modelado'
 
 urlpatterns = [
+    path('proyectos/<int:pk>/historial/', DiagramHistoryView.as_view(), name='diagram_history'),
     path('proyectos/', ProyectoListCreateView.as_view(), name='proyecto_list_create'),
     path('proyectos/<int:pk>/', ProyectoDetailView.as_view(), name='proyecto_detail'),
     path('proyectos/<int:pk>/diagrama/', DiagramaCargaInicialView.as_view(), name='diagrama_carga_inicial'),

@@ -120,6 +120,11 @@
           <span class="burbuja-hora">{{ msg.fecha_envio | date:'shortTime' }}</span>
         </div>
 
+        <div *ngIf="msg.rol === 'AGENT' && obtenerEtiquetaProveedor(msg)" class="burbuja-meta burbuja-meta-agente">
+          <span class="burbuja-autor">Agente Senior</span>
+          <span class="badge-ia badge-proveedor">{{ obtenerEtiquetaProveedor(msg) }}</span>
+        </div>
+
         <div
           *ngIf="msg.rol === 'AGENT'; else textoUsuarioTpl"
           class="burbuja-cuerpo burbuja-markdown"

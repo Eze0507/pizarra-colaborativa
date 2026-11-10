@@ -1,6 +1,6 @@
 import { Injectable, inject, NgZone } from '@angular/core';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { BehaviorSubject, Subject, Subscription, timer } from 'rxjs';
+import { BehaviorSubject, Subject, Subscription, timer, firstValueFrom, timeout } from 'rxjs';
 import { filter, switchMap, debounceTime } from 'rxjs/operators';
 import { TokenStorageService } from '../../../core/services/token-storage.service';
 import { MensajeWS, EstadoConexion, AccionWS, EntidadDiagrama, RelacionDiagrama, UsuarioConectado } from '../interfaces/diagrama.interface';
@@ -9,6 +9,8 @@ import { confirmacionCorresponde, esConflictoRevision, requestCorresponde } from
 interface SnapshotPendiente {
   datos: Record<string, unknown>;
   expectedRevision: number;
+  operations?: { snapshot: Record<string, unknown>; description: string }[];
+  requestId?: string;
 }
 
 const SNAPSHOT_CONFIRMATION_TIMEOUT_MS = 15_000;
@@ -50,6 +52,8 @@ export class WhiteboardSocketService {
   private nombreEnCola: string | null = null;
   private secuenciaRequest = 0;
   private debouncePendiente = false;
+  private ultimoSnapshotLocal: string | null = null;
+  private snapshotIncierto: SnapshotPendiente | null = null;
 
   // Lista de colaboradores actualmente conectados
   private readonly _usuariosConectados$ = new BehaviorSubject<UsuarioConectado[]>([]);
@@ -79,6 +83,9 @@ export class WhiteboardSocketService {
     this.nombreEnCola = null;
     this.debouncePendiente = false;
     this.recuperacionPendiente = false;
+    this.ultimoSnapshotLocal = null;
+    this.snapshotIncierto = null;
+    this._estadoGuardado$.next('guardado');
     this._conflicto$.next(null);
 
     const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
@@ -144,6 +151,7 @@ export class WhiteboardSocketService {
           let confirmacionAceptada = false;
           if (accion === 'snapshot_guardado') {
             confirmacionAceptada = this.procesarConfirmacionSnapshot(normalizado);
+            normalizado.confirmacion_local = confirmacionAceptada;
           } else if (accion === 'proyecto_renombrado' && normalizado.revision !== undefined) {
             this._revision$.next(normalizado.revision);
           } else if (accion === 'comando_rechazado' && normalizado.codigo) {
@@ -171,12 +179,18 @@ export class WhiteboardSocketService {
             }
           }
 
+          if (['snapshot_guardado', 'diagram.updated', 'history.updated'].includes(accion || '') &&
+              !confirmacionAceptada && typeof normalizado.revision === 'number' &&
+              normalizado.revision > this.revisionActual && (this.guardadoPendiente || this.hayCambiosLocalesPendientes())) {
+            this.registrarConflictoRevision(normalizado.revision, 'Otro cambio fue confirmado mientras tenías cambios pendientes. Recupera el estado vigente antes de continuar.');
+          }
+
           this.ngZone.run(() => this._mensajes$.next(normalizado));
           if (confirmacionAceptada && !this._conflicto$.getValue() && this.snapshotEnCola) {
             const siguiente = this.snapshotEnCola;
             this.snapshotEnCola = null;
             this.enviarSnapshot({
-              datos: siguiente.datos,
+              ...siguiente,
               expectedRevision: this._revision$.getValue()
             });
           } else if (
@@ -267,24 +281,69 @@ export class WhiteboardSocketService {
 
   /** Programa el guardado del snapshot con debounce de 2s */
   public programarGuardarSnapshot(datos: Record<string, unknown>): void {
+    const pendiente = this.prepararSnapshot(datos);
+    if (!pendiente) return;
     this._estadoGuardado$.next('guardando');
     this.debouncePendiente = true;
-    this.snapshotEnDebounce = { datos, expectedRevision: this._revision$.getValue() };
+    this.snapshotEnCola = null;
+    this.snapshotEnDebounce = pendiente;
     this._snapshotTrigger$.next(this.snapshotEnDebounce);
   }
 
   /** Fuerza el guardado inmediato del snapshot sin esperar el debounce */
   public forzarGuardarSnapshot(datos: Record<string, unknown>): void {
+    const pendiente = this.prepararSnapshot(datos) || this.snapshotEnDebounce || this.snapshotEnCola;
+    if (!pendiente) return;
     if (this._conflicto$.getValue()) {
-      this.snapshotEnCola = { datos, expectedRevision: this._revision$.getValue() };
+      this.snapshotEnCola = pendiente;
       this._estadoGuardado$.next('error');
       return;
     }
     this._estadoGuardado$.next('guardando');
-    this.recuperacionPendiente = false;
     this.debouncePendiente = false;
     this.snapshotEnDebounce = null;
-    this.encolarOEnviarSnapshot({ datos, expectedRevision: this._revision$.getValue() });
+    this.snapshotEnCola = null;
+    this.encolarOEnviarSnapshot(pendiente);
+  }
+
+  private prepararSnapshot(datos: Record<string, unknown>): SnapshotPendiente | null {
+    const copy = JSON.parse(JSON.stringify(datos)) as Record<string, unknown>;
+    const entities = copy['entidades'] as EntidadDiagrama[] | undefined;
+    entities?.forEach(e => { if (e.estado === 'bloqueado') e.estado = 'activo'; });
+    const serialized = JSON.stringify(copy);
+    if (serialized === this.ultimoSnapshotLocal) return null;
+    this.ultimoSnapshotLocal = serialized;
+    const previous = this.snapshotEnDebounce || this.snapshotEnCola;
+    return { datos: copy, expectedRevision: previous?.expectedRevision ?? this.revisionActual,
+      operations: [...(previous?.operations || []), { snapshot: copy, description: 'Editar diagrama' }] };
+  }
+
+  public get tieneCambiosPendientes(): boolean {
+    return this.guardadoPendiente || this.hayCambiosLocalesPendientes() || this.recuperacionPendiente;
+  }
+
+  /** Espera la autoridad de Django, incluyendo un debounce que aún no se envió. */
+  public async esperarGuardadoConfirmado(): Promise<void> {
+    if (this._estado$.value !== 'conectado') throw new Error('Sin conexión: no se puede modificar el historial.');
+    if (this._conflicto$.value) throw new Error('Recupera el estado confirmado para resolver el conflicto antes de deshacer.');
+    if (this.snapshotIncierto && !this.guardadoPendiente) {
+      const pending = this.snapshotIncierto;
+      this.snapshotIncierto = null;
+      if (this.snapshotEnCola === pending) this.snapshotEnCola = null;
+      this.recuperacionPendiente = false;
+      this._estadoGuardado$.next('guardando');
+      this.enviarSnapshot(pending);
+    } else if (this.recuperacionPendiente) {
+      throw new Error('El guardado fue rechazado. Recupera el estado confirmado antes de continuar.');
+    }
+    if (this.snapshotEnDebounce) this.forzarGuardarSnapshot(this.snapshotEnDebounce.datos);
+    if (this._estadoGuardado$.value === 'guardado' && !this.tieneCambiosPendientes) return;
+    const state = await firstValueFrom(this.estadoGuardado$.pipe(filter(s => s !== 'guardando'), timeout(20_000)));
+    if (state !== 'guardado' || this.tieneCambiosPendientes) throw new Error('No se confirmó el guardado. El historial no se modificó.');
+  }
+
+  public establecerSnapshotConfirmado(datos: Record<string, unknown>): void {
+    if (!this.tieneCambiosPendientes) this.ultimoSnapshotLocal = JSON.stringify(datos);
   }
 
   public establecerRevision(revision: number): void {
@@ -301,6 +360,8 @@ export class WhiteboardSocketService {
     this.requestPendiente = null;
     this.debouncePendiente = false;
     this.recuperacionPendiente = false;
+    this.snapshotIncierto = null;
+    this.ultimoSnapshotLocal = null;
     this.cancelarTimeoutGuardado();
     this._conflicto$.next(null);
     this._estadoGuardado$.next('guardado');
@@ -324,14 +385,16 @@ export class WhiteboardSocketService {
   }
 
   private enviarSnapshot(pendiente: SnapshotPendiente): void {
-    const requestId = this.nuevoRequestId();
+    const requestId = pendiente.requestId || this.nuevoRequestId();
+    pendiente.requestId = requestId;
     this.guardadoPendiente = true;
     this.snapshotPendiente = pendiente;
     this.requestPendiente = requestId;
     this.iniciarTimeoutGuardado(requestId);
     this.enviarMensaje({
       accion: 'guardar_snapshot', datos_diagrama: pendiente.datos,
-      expected_revision: pendiente.expectedRevision, request_id: requestId
+      expected_revision: pendiente.expectedRevision, request_id: requestId,
+      operations: pendiente.operations
     });
   }
 
@@ -355,6 +418,7 @@ export class WhiteboardSocketService {
     }
 
     this.cancelarTimeoutGuardado();
+    this.remapearPendientes(mensaje);
     this._revision$.next(revision);
     this.rebasarPendientesTrasConfirmacionPropia(revision);
     this.guardadoPendiente = false;
@@ -380,7 +444,9 @@ export class WhiteboardSocketService {
     this.recuperacionPendiente = true;
     this.ngZone.run(() => {
       this._estadoGuardado$.next('error');
-      if (esConflictoRevision(mensaje)) this._conflicto$.next(mensaje);
+      // Todo rechazo conserva el borrador y ofrece reconciliación explícita;
+      // un timeout, en cambio, conserva el recibo pendiente para reintentar.
+      this._conflicto$.next(mensaje);
     });
   }
 
@@ -424,6 +490,7 @@ export class WhiteboardSocketService {
   private marcarGuardadoIncierto(): void {
     if (!this.guardadoPendiente && !this.hayCambiosLocalesPendientes()) return;
     this.cancelarTimeoutGuardado();
+    this.snapshotIncierto = this.snapshotPendiente || this.snapshotIncierto;
     const ultimo = this.snapshotEnDebounce || this.snapshotEnCola || this.snapshotPendiente;
     if (ultimo) this.snapshotEnCola = ultimo;
     this.snapshotPendiente = null;
@@ -431,6 +498,35 @@ export class WhiteboardSocketService {
     this.requestPendiente = null;
     this.recuperacionPendiente = true;
     this._estadoGuardado$.next('error');
+  }
+
+  private remapearPendientes(maps: MensajeWS): void {
+    const remap = (data: Record<string, unknown>): void => {
+      const mapId = (id: number, mapping?: Record<string, number>): number => mapping?.[id] ?? id;
+      const ref = (row: any): void => {
+        for (const key of ['tipo_referencia_id', 'retorno_referencia_id', 'entidad_origen_id', 'entidad_destino_id', 'clase_asociacion_id']) {
+          if (row[key] !== null && row[key] !== undefined) row[key] = mapId(row[key], maps.id_map);
+        }
+      };
+      for (const e of (data['entidades'] as EntidadDiagrama[] || [])) {
+        e.id = mapId(e.id, maps.id_map);
+        for (const a of e.atributos || []) { a.id = mapId(a.id, maps.attr_id_map); ref(a); }
+        for (const o of e.operaciones || []) {
+          o.id = mapId(o.id, maps.operation_id_map); ref(o);
+          for (const p of o.parametros || []) { p.id = mapId(p.id, maps.parameter_id_map); ref(p); }
+        }
+      }
+      for (const r of (data['relaciones'] as RelacionDiagrama[] || [])) { r.id = mapId(r.id, maps.rel_id_map); ref(r); }
+      if (data['posiciones']) data['posiciones'] = Object.fromEntries(Object.entries(data['posiciones'] as object).map(([key, value]) => [mapId(Number(key), maps.id_map), value]));
+    };
+    for (const pending of [this.snapshotEnDebounce, this.snapshotEnCola]) {
+      if (!pending) continue;
+      remap(pending.datos);
+      pending.operations?.forEach(op => remap(op.snapshot));
+    }
+    if (this.ultimoSnapshotLocal) {
+      const last = JSON.parse(this.ultimoSnapshotLocal); remap(last); this.ultimoSnapshotLocal = JSON.stringify(last);
+    }
   }
 
   private enviarMensaje(mensaje: MensajeWS): void {

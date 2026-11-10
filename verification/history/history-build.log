@@ -1,0 +1,25 @@
+Initial chunk files | Names              |  Raw size
+chunk-K7Q765YO.js   | -                  |   1.41 MB | 
+polyfills.js        | polyfills          |  89.77 kB | 
+main.js             | main               |  63.71 kB | 
+chunk-E2Q6BNSW.js   | -                  |  12.02 kB | 
+chunk-U33G5PFM.js   | -                  |   2.01 kB | 
+chunk-6V3ZAOSV.js   | -                  |   1.95 kB | 
+chunk-N6OVL5NN.js   | -                  |   1.69 kB | 
+styles.css          | styles             | 899 bytes | 
+
+                    | Initial total      |   1.58 MB
+
+Lazy chunk files    | Names              |  Raw size
+chunk-YWEHIJJX.js   | whiteboard-page    |   1.97 MB | 
+chunk-RN44Q5JU.js   | -                  | 224.08 kB | 
+chunk-K7P2VYQJ.js   | projects-list-page | 102.54 kB | 
+chunk-IC3HUOHT.js   | register-page      |  24.33 kB | 
+chunk-4RQQHQOM.js   | login-page         |  18.99 kB | 
+chunk-UI7PORBO.js   | activate-page      |  13.83 kB | 
+chunk-TCXO6JQG.js   | -                  |   8.08 kB | 
+
+Application bundle generation complete. [5.785 seconds]
+
+Output location: D:\8vo semestre\swsegundoparcial\pizarra-colaborativa\frontend\dist\app-coll
+

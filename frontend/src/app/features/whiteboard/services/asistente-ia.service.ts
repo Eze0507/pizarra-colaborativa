@@ -756,7 +756,9 @@ export class AsistenteIaService {
         entidad_origen_id: r.entidad_origen_id,
         entidad_destino_id: r.entidad_destino_id,
         tipo: r.tipo,
-        nombre_relacion: r.nombre_relacion
+        nombre_relacion: r.nombre_relacion,
+        cardinalidad_origen: r.cardinalidad_origen || '',
+        cardinalidad_destino: r.cardinalidad_destino || ''
       }))
     };
   }

@@ -14,7 +14,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subscription } from 'rxjs';
+import { Subscription, take } from 'rxjs';
 
 import {
   ContextoDiagramaIA,
@@ -22,6 +22,9 @@ import {
 } from '../../interfaces/asistente-ia.interface';
 import { AsistenteIaService } from '../../services/asistente-ia.service';
 import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
+import { DiagramHistoryService } from '../../services/diagram-history.service';
+import { WhiteboardSocketService } from '../../services/whiteboard-socket.service';
+import { parseHistoryCommand } from '../../utils/history-command.utils';
 
 @Component({
   selector: 'app-chat-asistente-ia',
@@ -34,9 +37,12 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   private readonly asistenteIaService = inject(AsistenteIaService);
   private readonly toastService = inject(ToastNotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  public readonly history = inject(DiagramHistoryService);
+  private readonly socket = inject(WhiteboardSocketService);
 
   @Input() public contextoDiagrama: ContextoDiagramaIA = { entidades: [], relaciones: [] };
   @Input() public modoOscuro = true;
+  @Input() public habilitado = true;
 
   @Output() public readonly ejecutarDeltaIA = new EventEmitter<DeltaInstruccionIARespuesta>();
 
@@ -50,12 +56,21 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
 
   private timerDebounceEnvio: number | null = null;
   private readonly subs = new Subscription();
+  private instructionSubscription: Subscription | null = null;
+  private instructionGeneration = 0;
+  public mensajeHistorial = '';
+  public historialEnProceso = false;
 
   public ngOnInit(): void {
     this.suscribirEventosVoz();
+    this.subs.add(this.history.cancelAssistant$.subscribe(() => this.cancelarInstruccion()));
+    this.subs.add(this.history.busy$.subscribe(busy => { this.historialEnProceso = busy; this.cdr.markForCheck(); }));
+    this.subs.add(this.history.state$.subscribe(() => this.cdr.markForCheck()));
+    this.subs.add(this.history.messages$.subscribe(message => { this.mensajeHistorial = message.text; this.cdr.markForCheck(); }));
   }
 
   public ngOnDestroy(): void {
+    this.cancelarInstruccion();
     if (this.timerDebounceEnvio !== null) {
       window.clearTimeout(this.timerDebounceEnvio);
       this.timerDebounceEnvio = null;
@@ -166,7 +181,19 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
   public enviarInstruccion(textoManual?: string): void {
     const texto = (textoManual ?? this.textoInstruccion).trim();
     this.textoInstruccion = '';
-    if (!texto || this.cargandoInstruccion) return;
+    if (!texto || !this.habilitado || this.historialEnProceso) return;
+    const command = parseHistoryCommand(texto);
+    if (command) {
+      this.detenerMicrofono();
+      if (command.action === 'clarify') {
+        this.mensajeHistorial = command.message;
+        this.cdr.markForCheck();
+      } else {
+        void this.history.execute(command);
+      }
+      return;
+    }
+    if (this.cargandoInstruccion) return;
 
     if (this.escuchandoMicrofono) {
       this.detenerMicrofono();
@@ -177,12 +204,35 @@ export class ChatAsistenteIaComponent implements OnInit, OnDestroy {
     this.cargandoInstruccion = true;
     this.cdr.markForCheck();
 
-    this.asistenteIaService
+    const generation = ++this.instructionGeneration;
+    const revision = this.socket.revisionActual;
+    const context = JSON.stringify(this.contextoDiagrama);
+    this.instructionSubscription = this.asistenteIaService
       .ejecutarInstruccion(texto, this.contextoDiagrama)
+      .pipe(take(1))
       .subscribe({
-        next: (delta) => this.manejarExitoInstruccion(delta),
-        error: (err: HttpErrorResponse) => this.manejarErrorInstruccion(err)
+        next: (delta) => {
+          if (generation !== this.instructionGeneration) return;
+          if (!this.habilitado || revision !== this.socket.revisionActual || context !== JSON.stringify(this.contextoDiagrama)) {
+            this.cancelarInstruccion();
+            this.toastService.info('El diagrama cambió mientras se procesaba la instrucción. Vuelve a enviarla.');
+            return;
+          }
+          this.manejarExitoInstruccion(delta);
+        },
+        error: (err: HttpErrorResponse) => { if (generation === this.instructionGeneration) this.manejarErrorInstruccion(err); }
       });
+  }
+
+  private cancelarInstruccion(): void {
+    this.instructionGeneration++;
+    this.instructionSubscription?.unsubscribe();
+    this.instructionSubscription = null;
+    if (this.timerDebounceEnvio !== null) window.clearTimeout(this.timerDebounceEnvio);
+    this.timerDebounceEnvio = null;
+    this.cargandoInstruccion = false;
+    this.instruccionEnProceso = '';
+    this.cdr.markForCheck();
   }
 
   private manejarExitoInstruccion(delta: DeltaInstruccionIARespuesta): void {

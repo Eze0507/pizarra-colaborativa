@@ -107,7 +107,10 @@ export class WhiteboardCanvasService {
 
   public setSoloLectura(soloLectura: boolean): void {
     if (this.paper) {
-      this.paper.options.interactive = soloLectura ? false : { linkMove: false };
+      // JointJS copies `interactive` into every CellView when it is rendered.
+      // Updating only paper.options leaves existing entity views locked after
+      // a history reload. This API updates both the Paper and all its views.
+      this.paper.setInteractivity(soloLectura ? false : { linkMove: false });
     }
   }
 
@@ -714,13 +717,6 @@ export class WhiteboardCanvasService {
           return;
         }
       }
-      if (evt?.detail >= 2) {
-        abrirMenuContextualRelacion(linkView, evt);
-      }
-    });
-
-    this.paper.on('link:pointerdblclick', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
-      abrirMenuContextualRelacion(linkView, evt);
     });
 
     this.paper.on('link:contextmenu', (linkView: joint.dia.LinkView, evt: MouseEvent) => {
@@ -866,10 +862,6 @@ export class WhiteboardCanvasService {
     };
 
     this.paper.on('element:pointerclick', (cellView: joint.dia.ElementView, evt: MouseEvent, _x?: number, y?: number) => {
-      if (evt?.detail >= 2) {
-        abrirMenuContextualEntidad(cellView, evt);
-        return;
-      }
       if (timerClickElemento) {
         clearTimeout(timerClickElemento);
       }
@@ -877,10 +869,6 @@ export class WhiteboardCanvasService {
         timerClickElemento = null;
         manejarClickElemento(cellView, evt, _x, y);
       }, 200);
-    });
-
-    this.paper.on('element:pointerdblclick', (cellView: joint.dia.ElementView, evt: MouseEvent) => {
-      abrirMenuContextualEntidad(cellView, evt);
     });
 
     this.paper.on('element:contextmenu', (cellView: joint.dia.ElementView, evt: MouseEvent) => {

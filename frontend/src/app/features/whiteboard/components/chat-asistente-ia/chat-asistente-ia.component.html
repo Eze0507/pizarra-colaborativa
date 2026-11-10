@@ -9,6 +9,12 @@
     role="region"
     aria-label="Barra de instrucciones rápidas con IA"
   >
+    <button type="button" class="btn-historial" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"
+      [disabled]="!habilitado || historialEnProceso || (!history.canUndo && !cargandoInstruccion)"
+      (click)="history.execute({ action: 'undo' })">↶</button>
+    <button type="button" class="btn-historial" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"
+      [disabled]="!habilitado || historialEnProceso || !history.canRedo"
+      (click)="history.execute({ action: 'redo' })">↷</button>
     <!-- ESTADO 1: PROCESANDO INSTRUCCIÓN (Muestra spinner + el mensaje dicho/escrito) -->
     <div *ngIf="cargandoInstruccion" class="pildora-estado-procesando">
       <div class="pildora-spinner"></div>
@@ -46,6 +52,7 @@
         [placeholder]="escuchandoMicrofono ? 'Escuchando instrucción... (suelta Espacio o pulsa enviar)' : 'Escribe una instrucción para el lienzo o usa el micrófono...'"
         (keydown.enter)="onEnterInput($event)"
         autocomplete="off"
+        [disabled]="!habilitado || historialEnProceso"
       />
 
       <!-- Botón Enviar -->
@@ -63,5 +70,8 @@
         </svg>
       </button>
     </ng-container>
+  </div>
+  <div *ngIf="historialEnProceso || mensajeHistorial" class="mensaje-historial" role="status" aria-live="polite">
+    {{ historialEnProceso ? 'Esperando confirmación del diagrama…' : mensajeHistorial }}
   </div>
 </div>

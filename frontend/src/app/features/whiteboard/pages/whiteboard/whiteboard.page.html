@@ -20,7 +20,7 @@
   </div>
 
   <div *ngIf="conflictoRevision" class="revision-conflict" role="alert">
-    <strong>El diagrama cambió en otro cliente.</strong>
+    <strong>{{ conflictoRevision.mensaje || 'No se confirmó el cambio del diagrama.' }}</strong>
     <span>Se conservaron tus cambios locales y se suspendió el autoguardado.</span>
     <button type="button" (click)="onRecargarTrasConflicto()">Recuperar estado remoto</button>
   </div>
@@ -50,7 +50,7 @@
   </app-sidebar-pizarra>
 
   <!-- Lienzo JointJS -->
-  <div class="lienzo-wrapper">
+  <div class="lienzo-wrapper" (contextmenu)="$event.preventDefault()">
     <div 
       #lienzo 
       class="lienzo"
@@ -97,6 +97,7 @@
     <!-- Botón Flotante y Panel de Asistente IA (Chat y Voz) -->
     <app-chat-asistente-ia
       *ngIf="puedeEditar"
+      [habilitado]="edicionDisponible"
       [contextoDiagrama]="contextoDiagramaIA"
       [modoOscuro]="modoOscuro"
       (ejecutarDeltaIA)="onEjecutarDeltaIA($event)"

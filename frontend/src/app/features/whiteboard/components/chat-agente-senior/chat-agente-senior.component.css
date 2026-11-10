@@ -542,6 +542,17 @@
   color: #00a3ff;
 }
 
+.burbuja-meta-agente {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.badge-proveedor {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .burbuja-hora {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;

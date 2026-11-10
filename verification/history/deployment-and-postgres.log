@@ -1,0 +1,46 @@
+Transcripción de los resultados observados mediante las herramientas de ejecución.
+Fecha: 2026-11-09 (America/La_Paz).
+
+docker compose exec -T backend python manage.py migrate modelado --plan
+Planned operations:
+modelado.0014_diagrameditlock_diagramhistoryoperation_and_more
+    Create model DiagramEditLock
+    Create model DiagramHistoryOperation
+    Create model DiagramHistoryReceipt
+Exit code: 0
+
+docker compose exec -T backend python manage.py migrate modelado --noinput
+Operations to perform:
+  Apply all migrations: modelado
+Running migrations:
+  Applying modelado.0014_diagrameditlock_diagramhistoryoperation_and_more... OK
+Exit code: 0
+
+docker compose exec -T -e NODOBOARD_TEST_MODE=1 backend python manage.py test modelado.tests_history --settings=modelado.history_postgres_test_settings --noinput
+Found 31 test(s).
+Creating test database for alias 'default'...
+System check identified no issues (0 silenced).
+Ran 31 tests in 30.440s
+OK
+Destroying test database for alias 'default'...
+Exit code: 0
+Base TEST con nombre aleatorio: test_nodoboard_history_<uuid>, independiente de la base del proyecto.
+Las carreras concurrentes tienen límites de espera de 10/20 segundos.
+
+NODOBOARD_TEST_MODE=1 backend/.venv/Scripts/python.exe backend/manage.py makemigrations --check --dry-run --settings=core.settings_test
+No changes detected
+Exit code: 0
+
+docker compose restart backend
+Container COLL_backend Restarting
+Container COLL_backend Started
+Exit code: 0
+
+Comprobación HTTP con urllib.request, timeout=10:
+http://localhost:8000/api/modelado/proyectos/0/historial/ -> 401 (autenticación exigida, ruta activa)
+http://localhost:4200/ -> 200
+
+Comprobación visual con Computer Use:
+El inventario informó: "The browser access host is unavailable".
+El acceso al navegador Windows se detuvo porque no pudo determinar la URL con suficiente confianza para aplicar su política.
+No se hicieron acciones de edición mediante la interfaz ni se verificó manualmente F5/cierre del navegador.

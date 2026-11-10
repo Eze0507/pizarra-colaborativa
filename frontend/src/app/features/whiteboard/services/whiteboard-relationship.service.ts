@@ -634,7 +634,8 @@ export class WhiteboardRelationshipService {
         name: 'manhattan',
         args: this.obtenerOpcionesRouterManhattan(esAutoreferencia, relacion.puerto_origen, relacion.puerto_destino)
       },
-      connector: { name: 'rounded', args: { radius: 8 } }
+      connector: { name: 'rounded', args: { radius: 8 } },
+      vertices: (relacion.vertices || []).map(v => ({ ...v }))
     });
 
     this.graph.addCell(link);
@@ -1285,8 +1286,8 @@ export class WhiteboardRelationshipService {
 
   public getRelaciones(): RelacionDiagrama[] {
     return Array.from(this.relacionesMap.values()).map(rel => {
-      rel.vertices = [];
-      return { ...rel, vertices: [] };
+      const vertices = this.linksRelaciones.get(rel.id)?.vertices() || rel.vertices || [];
+      return { ...rel, vertices: vertices.map(v => ({ x: v.x, y: v.y })) };
     });
   }
 

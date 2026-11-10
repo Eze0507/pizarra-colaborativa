@@ -26,6 +26,26 @@ SKILL.md
 UI_UX_STYLE.md
 features/
 
+# Incluir únicamente los nuevos archivos del historial bajo el directorio ignorado.
+!frontend/src/app/features/
+frontend/src/app/features/*
+!frontend/src/app/features/whiteboard/
+frontend/src/app/features/whiteboard/*
+!frontend/src/app/features/whiteboard/services/
+frontend/src/app/features/whiteboard/services/*
+!frontend/src/app/features/whiteboard/services/diagram-history.service.ts
+!frontend/src/app/features/whiteboard/services/diagram-history.service.spec.ts
+!frontend/src/app/features/whiteboard/services/history-canvas.spec.ts
+!frontend/src/app/features/whiteboard/utils/
+frontend/src/app/features/whiteboard/utils/*
+!frontend/src/app/features/whiteboard/utils/history-command.utils.ts
+!frontend/src/app/features/whiteboard/utils/history-command.utils.spec.ts
+!frontend/src/app/features/whiteboard/components/
+frontend/src/app/features/whiteboard/components/*
+!frontend/src/app/features/whiteboard/components/chat-asistente-ia/
+frontend/src/app/features/whiteboard/components/chat-asistente-ia/*
+!frontend/src/app/features/whiteboard/components/chat-asistente-ia/chat-asistente-ia.component.spec.ts
+
 debug.log
 
 auditoria-diagramcraft-nodoboard.code-workspace

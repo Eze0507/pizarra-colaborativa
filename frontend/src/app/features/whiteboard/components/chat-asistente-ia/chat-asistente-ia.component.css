@@ -240,3 +240,7 @@
   flex: 1;
   min-width: 0;
 }
+.btn-historial { border: 0; background: transparent; color: inherit; font-size: 24px; cursor: pointer; padding: 6px; }
+.btn-historial:disabled { opacity: .35; cursor: default; }
+.mensaje-historial { max-width: 650px; padding: 8px 14px; border-radius: 8px; background: #f1f5f9; color: #1e293b; font-size: 12px; }
+.modo-oscuro .mensaje-historial { background: #1e293b; color: #e2e8f0; }

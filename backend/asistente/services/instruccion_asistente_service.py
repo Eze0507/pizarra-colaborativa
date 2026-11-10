@@ -8,7 +8,7 @@ SYSTEM_PROMPT_INSTRUCCIONES = """Actúa como un copiloto y asistente interactivo
 El usuario te dará una orden o instrucción breve (mediante voz o texto) para realizar tareas pequeñas y específicas en su diagrama.
 Recibirás:
 1. "instruccion": la orden del usuario (ej: "crea la tabla cliente con id y nombre", "agrega el campo email a cliente", "relaciona cliente con factura", "elimina la tabla temporal").
-2. "contexto_diagrama": lista resumida de entidades existentes (id, nombre, estado: 'activo' o 'bloqueado', atributos) y relaciones actuales (id, entidad_origen_id, entidad_destino_id, nombre_relacion).
+2. "contexto_diagrama": lista resumida de entidades existentes (id, nombre, estado: 'activo' o 'bloqueado', atributos) y relaciones actuales (id, entidad_origen_id, entidad_destino_id, nombre_relacion, cardinalidad_origen, cardinalidad_destino).
 
 Tu objetivo es interpretar la orden con precisión y devolver un delta estructurado de cambios a aplicar en el diagrama, junto con un mensaje conversacional amigable y breve en español.
 
@@ -43,7 +43,7 @@ REGLAS DE INTERPRETACIÓN:
    - "tipo": "asociacion" por defecto a menos que se pida "composicion", "agregacion" o "herencia".
    - En "composicion" o "agregacion": "entidad_origen_nombre" DEBE ser la PARTE y "entidad_destino_nombre" DEBE ser el CONTENEDOR / TODO.
    - En "herencia": "entidad_origen_nombre" es la subclase (hijo) y "entidad_destino_nombre" es la superclase (padre).
-   - Cardinalidades: NO asignes cardinalidades por defecto. Deja "cardinalidad_origen": "" y "cardinalidad_destino": "" a menos que se soliciten explícitamente.
+   - Cardinalidades: conserva las cardinalidades de relaciones existentes incluidas en "contexto_diagrama". Para relaciones nuevas, NO asignes cardinalidades por defecto: deja "cardinalidad_origen": "" y "cardinalidad_destino": "" a menos que se soliciten explícitamente.
 5. ÓRDENES COMPUESTAS (CREAR Y RELACIONAR SIMULTÁNEAMENTE):
    - Agrega la entidad a "entidades_a_crear" y define la relación en "relaciones_a_crear".
 6. REGLA ESTRICTA PARA RELACIONES DE MUCHOS A MUCHOS (M:M, N:M, "muchos a muchos", "clase de asociación"):
@@ -97,7 +97,9 @@ class InstruccionAsistenteService:
                     "origen_id": rel.get('entidad_origen_id'),
                     "destino_id": rel.get('entidad_destino_id'),
                     "tipo": rel.get('tipo'),
-                    "nombre": rel.get('nombre_relacion')
+                    "nombre": rel.get('nombre_relacion'),
+                    "cardinalidad_origen": rel.get('cardinalidad_origen') or '',
+                    "cardinalidad_destino": rel.get('cardinalidad_destino') or ''
                 }
                 for rel in (contexto.get('relaciones') or [])
                 if isinstance(rel, dict) and rel.get('id') is not None

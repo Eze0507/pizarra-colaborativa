@@ -1,4 +1,5 @@
 import re
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
@@ -17,6 +18,60 @@ class VisibilidadUML(models.TextChoices):
     PROTECTED = 'protected', 'Protected'
     PRIVATE = 'private', 'Private'
     PACKAGE = 'package', 'Package'
+
+
+class DiagramHistoryOperation(models.Model):
+    """Historia personal confirmada. Los estados UML nunca incluyen presencia o permisos."""
+    class Status(models.TextChoices):
+        APPLIED = 'aplicada', 'Aplicada'
+        UNDONE = 'deshecha', 'Deshecha'
+        INVALID = 'invalidada', 'Invalidada'
+
+    id = models.BigAutoField(primary_key=True)  # orden lógico, independiente de la revisión del lote
+    operation_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    project = models.ForeignKey('Proyecto', on_delete=models.CASCADE, related_name='history_operations')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='diagram_history')
+    kind = models.CharField(max_length=40, default='edit')
+    description = models.CharField(max_length=250)
+    created_at = models.DateTimeField(auto_now_add=True)
+    base_revision = models.PositiveBigIntegerField()
+    confirmed_revision = models.PositiveBigIntegerField()
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.APPLIED)
+    before = models.JSONField()
+    after = models.JSONField()
+    affected = models.JSONField(default=dict)
+    request_id = models.CharField(max_length=100)
+    batch_index = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['id']
+        constraints = [models.UniqueConstraint(fields=['project', 'user', 'request_id', 'batch_index'], name='unique_history_batch_operation')]
+        indexes = [models.Index(fields=['project', 'user', 'status', 'id'], name='history_owner_state_idx')]
+
+
+class DiagramHistoryReceipt(models.Model):
+    """Recibos durables independientes de la poda de las 50 operaciones restaurables."""
+    project = models.ForeignKey('Proyecto', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    request_id = models.CharField(max_length=100)
+    fingerprint = models.CharField(max_length=64)
+    result = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project', 'user', 'request_id'], name='unique_history_request')]
+
+
+class DiagramEditLock(models.Model):
+    """Arrendamiento de edición vigente; jamás forma parte de un snapshot histórico."""
+    project = models.ForeignKey('Proyecto', on_delete=models.CASCADE)
+    entity_id = models.BigIntegerField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    connection = models.CharField(max_length=255)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project', 'entity_id'], name='unique_diagram_edit_lock')]
 
 
 class Proyecto(models.Model):

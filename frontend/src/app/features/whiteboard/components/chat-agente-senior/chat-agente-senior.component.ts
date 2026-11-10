@@ -201,6 +201,21 @@ export class ChatAgenteSeniorComponent implements OnInit, OnChanges, OnDestroy {
     return this.agenteSeniorService.formatearMarkdown(msg.contenido);
   }
 
+  public obtenerEtiquetaProveedor(msg: MensajeAgenteSenior): string {
+    const partes: string[] = [];
+    if (msg.provider) {
+      partes.push(msg.provider.toLowerCase() === 'gemini' ? 'Gemini' :
+        msg.provider.toLowerCase() === 'ollama' ? 'Ollama' : msg.provider);
+    }
+    if (msg.model) {
+      partes.push(msg.model);
+    }
+    if (msg.fallback_used) {
+      partes.push('Respaldo');
+    }
+    return partes.join(' · ');
+  }
+
   private suscribirEstadoServicio(): void {
     this.subs.add(
       this.agenteSeniorService.mensajes$.subscribe(lista => {

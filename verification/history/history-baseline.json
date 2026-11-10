@@ -1,0 +1,25 @@
+{
+  "branch": "main",
+  "initial_status": " M backend/asistente/services/__init__.py\n M backend/asistente/services/agente_senior_service.py\n M backend/asistente/tests.py\n M backend/core/settings.py\n M frontend/angular.json\n M frontend/src/app/features/auth/components/login-form/login-form.component.ts\n M frontend/src/app/features/whiteboard/components/chat-agente-senior/chat-agente-senior.component.css\n M frontend/src/app/features/whiteboard/components/chat-agente-senior/chat-agente-senior.component.html\n M frontend/src/app/features/whiteboard/components/chat-agente-senior/chat-agente-senior.component.ts\n M frontend/src/app/features/whiteboard/interfaces/asistente-ia.interface.ts\n M frontend/src/app/features/whiteboard/pages/whiteboard/whiteboard.page.html\n M frontend/src/app/features/whiteboard/services/whiteboard-canvas.service.ts\n?? frontend/src/app/chat-agente-senior.component.spec.ts\n",
+  "protected_hashes": {
+    "backend\\asistente\\admin.py": "badf9240fb285201bd3d6c96c275ab87ec5978f41097ad6079c8febf22d6a6b7",
+    "backend\\asistente\\apps.py": "dfda89ac11d3bb5b7967ce4b6cfc4fe8627853ae7b09ff709b9460f7d0ddd3e2",
+    "backend\\asistente\\models.py": "900daff2147a68325af4e9b18ee02030c04f01141f08708fc86db25a8d54cdb0",
+    "backend\\asistente\\serializers.py": "d71264b1a6919c028f5abc09ef1264309a0d55634d0cf1fc30e67c960f8528f6",
+    "backend\\asistente\\tests.py": "fd0cf08d5130e9f664be82f14c0070a0a39278fd87ee04033d8117155cfd86ee",
+    "backend\\asistente\\urls.py": "3f2263e2b7c26c33c9c80d527564f6de6170ea43e3abe24d807ee4528b6e7768",
+    "backend\\asistente\\views.py": "c2f4231010b48292a68ffb58669c5bf3effe423408f1709015f4012cf2a84f35",
+    "backend\\asistente\\__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "backend\\asistente\\migrations\\0001_initial.py": "6397ea831248f93fa18637e83176701714f65ece783f5a8a14fb02ad9a45497b",
+    "backend\\asistente\\migrations\\__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "backend\\asistente\\services\\agente_senior_service.py": "bd98071f45d33830310e9b2dbfdb534385dc18cc5deb6a574d67a709c2c1d84d",
+    "backend\\asistente\\services\\diagrama_imagen_service.py": "ec6f75f4949e100f26fdd18ef4e24f0ce53ba4ae687526bda27a9685ead7527f",
+    "backend\\asistente\\services\\instruccion_asistente_service.py": "2e1e71b486e2eb293259ce3927c3856fa701e3628c9db794f5c4fccb58b02d28",
+    "backend\\asistente\\services\\__init__.py": "a363a16e3a1e8854ce11e9ffacfb61bcb5321cb61d2a0afdfdbf3b81e95224b1",
+    "backend\\core\\settings.py": "863f48eced7b37516bf37021e7bdd67271e4b0b2c1ec84f95651d5024869bc19",
+    ".env": "dc5300f5bc882c8ddd213e781b67c5f76f97733ea885cb0c367258a095d3ed2d",
+    "frontend\\src\\app\\features\\whiteboard\\components\\chat-agente-senior\\chat-agente-senior.component.css": "a2e053491e1f217d4b6e52794e348e75f6db5d0b175339a74961f0d15bf6bab6",
+    "frontend\\src\\app\\features\\whiteboard\\components\\chat-agente-senior\\chat-agente-senior.component.html": "14a2ba2020d69ad49d0b393b49cfbdd91af88952f9406c93b8122eaa4d401759",
+    "frontend\\src\\app\\features\\whiteboard\\components\\chat-agente-senior\\chat-agente-senior.component.ts": "7b37e127d8d7b6580e11bf0d960d638827a8b42f21ac6d203f5d30bf7ecde2d1"
+  }
+}

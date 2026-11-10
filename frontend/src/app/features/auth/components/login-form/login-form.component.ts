@@ -51,12 +51,18 @@ export class LoginFormComponent {
       },
       error: (error: HttpErrorResponse) => {
         this.isLoading = false;
+        const detail = error.error?.detail;
         if (error.status === 401) {
           this.errorMessage = 'Credenciales incorrectas. Verifique su usuario y contraseña.';
-        } else if (error.error && typeof error.error.detail === 'string') {
-          this.errorMessage = error.error.detail;
-        } else {
+        } else if (typeof detail === 'string') {
+          this.errorMessage = detail;
+        } else if (Array.isArray(detail)) {
+          this.errorMessage = detail.filter((message): message is string => typeof message === 'string').join(' ')
+            || 'No se pudo iniciar sesión. Revise los datos.';
+        } else if (error.status === 0) {
           this.errorMessage = 'Error al conectar con el servidor. Intente más tarde.';
+        } else {
+          this.errorMessage = 'No se pudo iniciar sesión. Revise los datos.';
         }
       }
     });

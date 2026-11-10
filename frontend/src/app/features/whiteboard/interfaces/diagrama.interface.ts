@@ -52,7 +52,7 @@ export type AccionWS =
   | 'relacion_creada' | 'actualizar_relacion' | 'relacion_actualizada'
   | 'eliminar_relacion' | 'relacion_eliminada' | 'renombrar_proyecto'
   | 'proyecto_renombrado' | 'snapshot_guardado' | 'permiso_denegado'
-  | 'comando_rechazado' | 'access.revoked' | 'diagram.updated'
+  | 'comando_rechazado' | 'access.revoked' | 'diagram.updated' | 'history.updated'
   | 'agente_senior_mensaje_creado' | 'agente_senior_estado_actualizado'
   | 'agente_senior_respuesta' | 'agente_senior_error';
 export interface MensajeWS extends MapasIdsSnapshot {
@@ -63,6 +63,8 @@ export interface MensajeWS extends MapasIdsSnapshot {
   data?: Record<string, unknown>; datos_diagrama?: Record<string, unknown>; exito?: boolean;
   revision?: number; expected_revision?: number; current_revision?: number;
   request_id?: string; codigo?: string; mensaje?: string;
+  operations?: { snapshot: Record<string, unknown>; description: string }[];
+  confirmacion_local?: boolean;
   bloqueado_por?: { usuario_id: number; username: string };
 }
 export type EstadoConexion = 'conectando' | 'conectado' | 'desconectado' | 'error';

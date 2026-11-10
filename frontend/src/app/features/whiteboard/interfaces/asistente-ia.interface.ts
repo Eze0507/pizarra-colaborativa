@@ -70,6 +70,8 @@ export interface ContextoRelacionMinimoIA {
   entidad_destino_id: number;
   tipo: string;
   nombre_relacion?: string;
+  cardinalidad_origen?: string;
+  cardinalidad_destino?: string;
 }
 
 export interface ContextoDiagramaIA {
@@ -147,6 +149,10 @@ export interface MensajeAgenteSenior {
   pregunta_id: number | null;
   usuario: UsuarioMensajeAgenteSenior | null;
   posicion_cola: number | null;
+  provider?: 'gemini' | 'ollama' | string | null;
+  model?: string | null;
+  fallback_used?: boolean;
+  duration_ms?: number | null;
 }
 
 export interface EstadoColaAgenteSenior {

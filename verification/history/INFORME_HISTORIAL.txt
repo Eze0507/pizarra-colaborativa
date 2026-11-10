@@ -1,0 +1,116 @@
+Implementación de Undo, Redo y restauración UML persistente
+Fecha: 2026-11-09, America/La_Paz
+
+Estado: implementación aplicada, compilada y verificada con pruebas automatizadas.
+La comprobación manual de F5/cerrar y reabrir el navegador no se realizó: Computer Use detuvo el acceso al navegador Windows al no poder identificar la URL con suficiente confianza. La persistencia entre sesiones está cubierta por pruebas de nuevas sesiones REST, recuperación del historial y rehidratación de JointJS, no por una sesión visual completa del producto.
+
+1. Entorno e inicio
+Workspace: D:\8vo semestre\swsegundoparcial.
+Proyecto real: D:\8vo semestre\swsegundoparcial\pizarra-colaborativa.
+Rama: main. No se crearon ramas, commits ni cambios en el índice de Git.
+El repositorio ya tenía 12 archivos modificados y un archivo sin seguimiento. El estado inicial exacto y los SHA-256 de 19 archivos protegidos están en history-baseline.json. Los cambios anteriores de Agente Senior, settings.py, interfaces, HTML y canvas se conservaron.
+Se revisaron frontend, backend, instrucciones locales y rutas reales. No había AGENTS.md ni SKILL.md local disponible en los directorios .agents inspeccionados. Para intentar la comprobación visual se leyó computer-use; el acceso al navegador terminó antes de poder editar la interfaz.
+
+2. Causas raíz comprobadas
+El manejador global de teclado solo atendía Delete/Backspace, sin Undo/Redo ni CommandManager persistente.
+La barra enviaba toda instrucción a ejecutarInstruccion(). Su contexto contenía únicamente entidades y relaciones actuales. Una eliminación quitaba los datos necesarios para restaurar.
+El debounce de 2 segundos transmitía únicamente el snapshot final, perdiendo los límites entre acciones.
+request_id se correlacionaba en Angular, pero no existía un recibo transaccional de deduplicación en Django.
+El guardado reemplazaba los registros actuales sin conservar información suficiente para reconstruir lo eliminado.
+
+3. Arquitectura implementada
+Se mantiene el ORM de Proyecto/Entidad/Atributo/Operacion/ParametroOperacion/Relacion como autoridad del diagrama actual y Proyecto.datos_diagrama como snapshot visual existente.
+SnapshotWriter extrae el escritor anterior del consumer para reutilizarlo desde autosave y operaciones históricas; no es una segunda fuente de verdad.
+DiagramHistoryOperation almacena UUID, orden, propietario, proyecto, tipo, descripción, fecha, revisiones, elementos afectados, estado y copias profundas de antes/después tomadas del ORM.
+Estados: aplicada, deshecha e invalidada. Una acción nueva invalida la rama de Redo.
+DiagramHistoryReceipt vincula usuario, proyecto, request_id y SHA-256 del contenido completo. Conserva el resultado confirmado incluso si se perdió el ACK. Un ID reutilizado con contenido diferente se rechaza.
+DiagramEditLock conserva arrendamientos vigentes de edición por conexión, separados de los estados UML históricos. Se liberan al desconectar y expiran a los 45 segundos.
+Migración aditiva: backend/modelado/migrations/0014_diagrameditlock_diagramhistoryoperation_and_more.py. Añade tres tablas, índices y restricciones únicas. Fue aplicada a PostgreSQL y probada preservando datos previos en bases de prueba.
+
+4. Endpoints, autenticación y permisos
+GET /api/modelado/proyectos/<id>/historial/: historial propio y disponibilidad, filtrados con request.user y el proyecto autorizado.
+POST en la misma ruta: command, expected_revision y request_id; el servidor determina el propietario y el cambio permitido.
+Las consultas usan READ; las mutaciones verifican WRITE vigente bajo bloqueo de Proyecto. No se confía en usuario_id del cliente.
+El WebSocket guardar_snapshot conserva su papel de escritor del autosave. Transporta operations con snapshots de cada límite lógico.
+No se exponen antes/después completos de otros usuarios, ni se envían las 50 operaciones al proveedor de IA.
+
+5. Undo y Redo
+Undo selecciona la última operación propia aplicada y compara las precondiciones del cambio contra el estado actual.
+Redo selecciona la siguiente operación deshecha y vuelve a validar la transición.
+Los cambios se aplican por elemento y propiedad. Las propiedades independientes posteriores se conservan.
+La integridad de atributos, métodos, parámetros, referencias y relaciones impide borrar trabajo dependiente de otros colaboradores.
+Una operación incompatible se rechaza con explicación y canUndo/canRedo reflejan su compatibilidad. No se salta automáticamente un conflicto ni se reemplaza el diagrama con un snapshot antiguo.
+Undo/Redo cambian el estado de la entrada; no crean entradas recursivas. Sus solicitudes sí tienen recibos idempotentes.
+
+6. Restore
+Busca eliminaciones reales en las últimas 50 operaciones autorizadas: clase, atributo, método o relación.
+Acepta nombres normalizados, clase contenedora, extremos de una relación, última eliminación u operation_id para desambiguar.
+Si varias eliminaciones siguen siendo posibles, devuelve candidatos y pide precisar la instrucción, sin ejecutar una parte.
+Recupera miembros UML, parámetros, visibilidad, tipos, valores predeterminados, referencias, coordenadas, ancho, puertos, cardinalidades, roles, navegabilidad y vértices persistidos.
+El alto en este proyecto se deriva de las filas de atributos/métodos; no existía una altura persistida independiente. Se reconstruye con el contenido original.
+Se reutilizan IDs históricos solo a partir de datos del servidor y después de comprobar que están libres. El cliente no puede resucitar arbitrariamente IDs positivos inexistentes.
+Una clase recupera relaciones incidentes compatibles. Las que tienen extremos ausentes o duplicados se omiten con advertencias; no se inventan clases ni relaciones para completarlas.
+Restore preserva acciones posteriores independientes y se registra como una nueva acción reversible.
+No restaura permisos, presencia, cursores, sesiones, indicadores ni bloqueos de colaboradores. Las restricciones visuales de anclaje de relaciones son datos diferentes de esos bloqueos.
+
+7. Persistencia, aislamiento y retención
+Las operaciones pertenecen a una pareja usuario/proyecto y se consultan de nuevo al abrir el diagrama.
+F5, cierre de pestaña, cierre del navegador y cierre de sesión no borran filas históricas. Angular limpia únicamente su copia local.
+Abrir el diagrama solo lee el estado compartido vigente y el historial; nunca ejecuta una restauración automática.
+Retención determinista: conservar las 50 filas con mayor orden lógico de cada usuario/proyecto y podar las más antiguas dentro de la transacción.
+Los recibos idempotentes se mantienen aparte de esas 50 operaciones; no son una fuente de restauración y su almacenamiento crece con las solicitudes confirmadas.
+No se ofrecen eliminaciones anteriores a la implementación ni descartadas por retención.
+
+8. Barra del asistente y teclado
+Única integración de asistente modificada: chat-asistente-ia, la barra «Escribe una instrucción para el lienzo…».
+El parser reconoce órdenes completas de deshacer, rehacer, restaurar y recuperar; normaliza mayúsculas, tildes, espacios y puntuación, conservando los nombres originales.
+«Crea una clase llamada Restaurar» sigue el procesamiento de IA existente.
+«Deshaz y después crea cliente» exige aclaración. Un fallo de historial nunca cae al proveedor.
+Atajos: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Cmd+Z y Cmd+Shift+Z. Se excluyen inputs, textarea, select, contenteditable, textbox, modales y repetición de teclas.
+Se usa el HostListener existente; no se añaden listeners globales duplicados.
+La barra incluye controles de Undo/Redo y comunica confirmaciones, conflictos y advertencias. El éxito histórico se anuncia únicamente tras respuesta de Django.
+Las peticiones de IA se cancelan/inutilizan al iniciar historial, al destruir el componente o si cambian la revisión/contexto. Cada respuesta se acepta como máximo una vez.
+
+9. Autosave, operaciones compuestas y WebSocket
+Cada acción local aporta un frame inmutable antes del debounce. Un delta de IA compuesto produce un frame con todas sus mutaciones. Las notificaciones repetidas de un mismo estado se deduplican.
+Un lote confirma una revisión y conserva múltiples entradas lógicas independientes.
+Django obtiene antes/después autoritativos para cada frame, valida IDs, propietarios, referencias, tipos, dimensiones, relaciones e integridad, y comprueba que el último frame coincide con el snapshot final.
+Diagrama, historial, revisión y recibo se confirman juntos bajo transaction.atomic y select_for_update del proyecto. Un fallo revierte el lote entero.
+Los mapas de entidades, atributos, métodos, parámetros y relaciones también se aplican a todos los frames que esperan en Angular.
+Undo durante debounce o guardado fuerza/espera el ACK; nunca revierte un estado local incierto.
+Un timeout conserva la solicitud original para consultar/reintentar con el mismo ID y contenido. Una desconexión bloquea la reversión. Un rechazo conserva el borrador y ofrece recuperación explícita del estado remoto.
+Un conflicto de revisión no se rebasa sobre trabajo remoto. Solo un ACK propio puede avanzar las revisiones de sus acciones pendientes.
+Los eventos remotos no generan operaciones propias. Las vistas previas de movimiento remoto se mantienen fuera de los snapshots locales.
+Las reversiones publican history.updated después del commit. Los clientes recargan el estado autoritativo; la rehidratación no registra nuevas operaciones.
+La recuperación del canvas conserva el ancho y las coordenadas originales y los vértices de relaciones. La lectura REST ya no normaliza arbitrariamente '*' ni inventa asociaciones para clases intermedias huérfanas.
+
+10. Protección del alcance
+Se verificaron hashes idénticos de 19 archivos protegidos respecto del inicio: backend/asistente/**/*.py, backend/core/settings.py, .env y los componentes de chat-agente-senior.
+Se preservaron servicios Gemini/Ollama, prompts, modelos de IA configurados, parámetros, selección de proveedor y fallback.
+No se cambió el servicio Angular asistente-ia.service.ts ni el contrato de envío de instrucciones normales a IA.
+Las pruebas de la barra utilizan mocks; no se invocaron proveedores reales para probar el historial.
+Se añadieron excepciones específicas a .gitignore porque la regla previa features/ ocultaba los nuevos servicios y pruebas. No se incluyeron indiscriminadamente otras carpetas ignoradas.
+
+11. Evidencia ejecutada
+Compilación TypeScript inicial: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json -> exit 0.
+Baseline relevante: modelado.tests_consistency + modelado.tests_uml_contract -> 20 pruebas, OK.
+Primera suite nueva: modelado.tests_history -> 28 pruebas, OK.
+Suite completa modelado con SQLite aislado: 88 pruebas, OK (1 omitida: fixture XMI externo NODOBOARD_FINANZAS_XMI no configurado). Incluye la prueba WebSocket de dos colaboradores añadida después de la primera ejecución.
+Suite final de historial en PostgreSQL temporal: 31 pruebas, OK, 30.440 s. Incluye los dos casos de concurrencia real incorporados posteriormente. La base temporal se destruyó al finalizar; no era la base de datos del proyecto.
+Suite Angular completa: 111 pruebas, todas exitosas en Chrome Headless.
+Después del último ajuste del aviso de rechazo: 17 pruebas del servicio WebSocket, todas exitosas.
+Build Angular final: node node_modules/@angular/cli/bin/ng.js build --configuration=development --progress=false -> exit 0, 5.785 s.
+makemigrations --check --dry-run -> No changes detected.
+git diff --check -> sin errores.
+Las ejecuciones locales usaron subprocess con límites de 120/180/240 segundos. Las pruebas de concurrencia tienen barreras/futuros de 10/20 segundos. Las respuestas REST de historial tienen timeout de 20 segundos; el ACK de snapshot, 15 segundos.
+Los comandos completos y sus salidas están en los archivos .log de esta carpeta. deployment-and-postgres.log transcribe los resultados de migración, PostgreSQL, reinicio y sondeo HTTP observados en las herramientas.
+
+12. Estado operativo y límites
+IMPLEMENTADO Y VERIFICADO AUTOMÁTICAMENTE: historial de acciones del canvas y deltas de IA persistidos por snapshots; Undo/Redo; Restore de clases/atributos/métodos/relaciones; aislamiento; retención; transacciones; idempotencia; conflictos; locks; parser; atajos; cancelación de respuestas tardías; recuperación de nuevas sesiones; rehidratación JointJS; publicación colaborativa; migración preservando datos.
+APLICADO: migración 0014 en PostgreSQL real y reinicio del contenedor backend para cargar los cambios. El endpoint histórico exige autenticación (HTTP 401 sin sesión) y el frontend responde HTTP 200.
+IMPLEMENTADO SIN VERIFICACIÓN VISUAL MANUAL: la secuencia interactiva completa F5/cerrar navegador/volver a iniciar sesión con el producto abierto. Computer Use se detuvo por no poder verificar la URL. No se declara esa prueba como realizada.
+FUERA DEL CAMBIO: Agente Senior/proveedores/configuración de IA; recuperación retroactiva; edición del nombre/metadatos de proyecto e importación XML por sus escritores separados existentes. Esas rutas no se incorporaron a la pila de acciones del canvas.
+LÍMITES EXPLÍCITOS: solo 50 operaciones restaurables por usuario/proyecto; sin reconstrucción inventada; nombres ambiguos requieren precisión; conflictos conservan el trabajo actual y pueden exigir recargar; no hay recuperación automática de borradores no confirmados al cerrar el navegador.
+No quedan errores conocidos en las pruebas ejecutadas. No se afirma haber validado proveedores reales ni todas las combinaciones de navegadores/dispositivos.
+
+Los inventarios exactos de archivos creados/modificados y el estado Git final se encuentran en final-state.json, junto con la verificación final de archivos protegidos. El estado final conserva también los cambios previos ajenos a esta implementación.

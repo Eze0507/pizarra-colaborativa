@@ -53,8 +53,6 @@ export class WhiteboardApiService {
       let cardDest = (r.cardinalidad_destino !== undefined && r.cardinalidad_destino !== null)
         ? r.cardinalidad_destino
         : (deSnapshot?.cardinalidad_destino ?? '');
-      if (cardOrig === '*') cardOrig = '0..*';
-      if (cardDest === '*') cardDest = '0..*';
 
       relacionesFinales.push({
         ...r,
@@ -74,23 +72,7 @@ export class WhiteboardApiService {
     // snapshot antiguo no se reincorpora silenciosamente (F06 resolverá la
     // reconciliación general y sus conflictos).
 
-    // Salvaguarda: si existen entidades intermedias sin clase_asociacion_id vinculada, resolver
-    const intermediasHuerfanas = (datos.entidades || []).filter(
-      e => e.es_intermedia && !relacionesFinales.some(r => r.clase_asociacion_id === e.id)
-    );
-
-    if (intermediasHuerfanas.length > 0) {
-      intermediasHuerfanas.forEach(entIntermedia => {
-        const relCandidata = relacionesFinales.find(
-          r => r.tipo === 'asociacion' && !r.clase_asociacion_id &&
-               r.entidad_origen_id !== entIntermedia.id &&
-               r.entidad_destino_id !== entIntermedia.id
-        );
-        if (relCandidata) {
-          relCandidata.clase_asociacion_id = entIntermedia.id;
-        }
-      });
-    }
+    // Las referencias de clases de asociaci?n proceden exclusivamente del ORM.
 
     return {
       ...datos,

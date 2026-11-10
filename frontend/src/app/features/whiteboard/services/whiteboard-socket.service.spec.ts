@@ -1,4 +1,4 @@
-import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { fakeAsync, TestBed, tick, flushMicrotasks } from '@angular/core/testing';
 
 import { WhiteboardSocketService } from './whiteboard-socket.service';
 
@@ -136,6 +136,7 @@ describe('WhiteboardSocketService - revisiones F06', () => {
     expect((service as any).snapshotEnCola.datos).toEqual({ version: 'B' });
     expect((service as any)._estadoGuardado$.getValue()).toBe('error');
     expect((service as any).guardadoPendiente).toBeFalse();
+    expect((service as any)._conflicto$.value.codigo).toBe('snapshot_rejected');
   });
 
   it('un rechazo ajeno no libera el guardado local', () => {
@@ -170,4 +171,75 @@ describe('WhiteboardSocketService - revisiones F06', () => {
     expect((service as any).snapshotEnDebounce).toBeNull();
     expect(anterior.datos).toEqual({ version: 'debounce' });
   });
+
+  it('conserva límites y copias profundas de acciones agrupadas sin duplicar notificaciones', fakeAsync(() => {
+    const send = spyOn<any>(service, 'enviarMensaje');
+    (service as any).iniciarDebounceSnapshots();
+    const a = { entidades: [{ id: -1, nombre: 'unidad' }], relaciones: [] };
+    service.programarGuardarSnapshot(a);
+    a.entidades[0].nombre = 'producto';
+    service.programarGuardarSnapshot(a);
+    service.programarGuardarSnapshot(a);
+    tick(2000);
+    const message = send.calls.mostRecent().args[0] as any;
+    expect(message.operations.length).toBe(2);
+    expect(message.operations[0].snapshot.entidades[0].nombre).toBe('unidad');
+    expect(message.operations[1].snapshot.entidades[0].nombre).toBe('producto');
+  }));
+
+  it('Undo durante debounce espera ACK autoritativo sin anunciar Guardado antes', fakeAsync(() => {
+    const send = spyOn<any>(service, 'enviarMensaje');
+    (service as any)._estado$.next('conectado');
+    (service as any).proyectoActual = 3;
+    service.programarGuardarSnapshot({ entidades: [] });
+    let done = false;
+    void service.esperarGuardadoConfirmado().then(() => done = true);
+    flushMicrotasks();
+    expect(done).toBeFalse();
+    const request = (send.calls.mostRecent().args[0] as any).request_id;
+    (service as any).procesarConfirmacionSnapshot({ proyecto_id: 3, request_id: request, revision: 1, exito: true });
+    flushMicrotasks();
+    expect(done).toBeTrue();
+  }));
+
+  it('remapea todas las acciones en debounce después de confirmar IDs definitivos', () => {
+    const send = spyOn<any>(service, 'enviarMensaje');
+    (service as any).proyectoActual = 3;
+    service.forzarGuardarSnapshot({ entidades: [{ id: -1, atributos: [{ id: -2 }], operaciones: [] }], relaciones: [] });
+    const request = (send.calls.mostRecent().args[0] as any).request_id;
+    service.programarGuardarSnapshot({ entidades: [{ id: -1, nombre: 'editada', atributos: [{ id: -2 }], operaciones: [] }], relaciones: [] });
+    (service as any).procesarConfirmacionSnapshot({ proyecto_id: 3, request_id: request, revision: 1, exito: true, id_map: { '-1': 30 }, attr_id_map: { '-2': 40 } });
+    const pending = (service as any).snapshotEnDebounce;
+    expect(pending.datos.entidades[0].id).toBe(30);
+    expect(pending.operations[0].snapshot.entidades[0].atributos[0].id).toBe(40);
+    expect(pending.expectedRevision).toBe(1);
+  });
+
+  it('reintenta un ACK perdido con idéntico request_id y contenido', fakeAsync(() => {
+    const send = spyOn<any>(service, 'enviarMensaje');
+    (service as any)._estado$.next('conectado');
+    (service as any).proyectoActual = 3;
+    service.forzarGuardarSnapshot({ entidades: [] });
+    const first = send.calls.mostRecent().args[0] as any;
+    tick(15_000);
+    let done = false;
+    void service.esperarGuardadoConfirmado().then(() => done = true);
+    const second = send.calls.mostRecent().args[0] as any;
+    expect(second).toEqual(first);
+    (service as any).procesarConfirmacionSnapshot({ proyecto_id: 3, request_id: first.request_id, revision: 1, exito: true });
+    flushMicrotasks();
+    expect(done).toBeTrue();
+  }));
+
+  it('desconexión y rechazo bloquean Undo sin fingir confirmación', fakeAsync(() => {
+    let error = '';
+    void service.esperarGuardadoConfirmado().catch(e => error = e.message);
+    flushMicrotasks();
+    expect(error).toContain('conexión');
+    (service as any)._estado$.next('conectado');
+    (service as any).recuperacionPendiente = true;
+    void service.esperarGuardadoConfirmado().catch(e => error = e.message);
+    flushMicrotasks();
+    expect(error).toContain('rechazado');
+  }));
 });

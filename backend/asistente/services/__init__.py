@@ -5,6 +5,8 @@ import logging
 import urllib.request
 import urllib.error
 
+import httpx
+
 from django.conf import settings
 from rest_framework import status
 
@@ -264,6 +266,127 @@ class GeminiProviderService:
             detail=f"El proveedor de IA no se encuentra disponible temporalmente. Detalle: {str(ultimo_error)}",
             status_code=status.HTTP_502_BAD_GATEWAY,
             codigo="ia_no_disponible"
+        )
+
+    @classmethod
+    def generar_chat_con_metadatos(
+        cls,
+        turnos: list[dict],
+        system_instruction: str,
+        temperature: float = 0.2
+    ) -> dict:
+        """
+        Ejecuta una conversación del Agente Senior conservando el modelo Gemini
+        que produjo la respuesta. Este método es adicional: ``generar_contenido``
+        mantiene su contrato histórico de retorno ``str`` para los demás flujos.
+        """
+        contenidos = []
+        for turno in turnos:
+            role = turno.get('role')
+            content = str(turno.get('content') or '').strip()
+            if not content:
+                continue
+            if role not in {'user', 'model'}:
+                raise ValueError(f"Rol Gemini no soportado: {role!r}")
+            contenidos.append(types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=content)]
+            ))
+
+        if not contenidos or contenidos[-1].role != 'user':
+            raise ValueError("La conversación Gemini debe finalizar con un turno de usuario.")
+
+        api_key = cls.obtener_api_key()
+        http_opts = types.HttpOptions(timeout=cls.TIMEOUT_MODELO_MS)
+        client = genai.Client(api_key=api_key, http_options=http_opts)
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=temperature,
+            http_options=http_opts,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        )
+
+        inicio_total = time.perf_counter()
+        intentos = []
+        for numero_intento, modelo in enumerate(cls.obtener_modelos_candidatos(), start=1):
+            inicio_intento = time.perf_counter()
+            try:
+                logger.info(
+                    "[GEMINI_AGENTE_SENIOR] Intento %s con modelo '%s'.",
+                    numero_intento,
+                    modelo,
+                )
+                response = client.models.generate_content(
+                    model=modelo,
+                    contents=contenidos,
+                    config=config,
+                )
+                texto = (getattr(response, 'text', None) or '').strip()
+                duracion_intento_ms = round((time.perf_counter() - inicio_intento) * 1000)
+                if texto:
+                    intentos.append({
+                        "model": modelo,
+                        "status": "success",
+                        "duration_ms": duracion_intento_ms,
+                    })
+                    return {
+                        "text": texto,
+                        "provider": "gemini",
+                        "model": modelo,
+                        "duration_ms": round((time.perf_counter() - inicio_total) * 1000),
+                        "attempts": intentos,
+                    }
+
+                intentos.append({
+                    "model": modelo,
+                    "status": "empty_response",
+                    "duration_ms": duracion_intento_ms,
+                })
+                logger.warning(
+                    "[GEMINI_AGENTE_SENIOR] El modelo '%s' devolvió una respuesta vacía.",
+                    modelo,
+                )
+            except ServerError as exc:
+                intentos.append({
+                    "model": modelo,
+                    "status": "server_error",
+                    "code": getattr(exc, 'code', None),
+                    "duration_ms": round((time.perf_counter() - inicio_intento) * 1000),
+                })
+                logger.warning(
+                    "[GEMINI_AGENTE_SENIOR] Error temporal del modelo '%s' (código=%s).",
+                    modelo,
+                    getattr(exc, 'code', None),
+                )
+                time.sleep(0.4)
+            except APIError as exc:
+                intentos.append({
+                    "model": modelo,
+                    "status": "api_error",
+                    "code": getattr(exc, 'code', None),
+                    "duration_ms": round((time.perf_counter() - inicio_intento) * 1000),
+                })
+                logger.warning(
+                    "[GEMINI_AGENTE_SENIOR] Error de API del modelo '%s' (código=%s).",
+                    modelo,
+                    getattr(exc, 'code', None),
+                )
+            except (TimeoutError, ConnectionError, httpx.TransportError) as exc:
+                intentos.append({
+                    "model": modelo,
+                    "status": type(exc).__name__,
+                    "duration_ms": round((time.perf_counter() - inicio_intento) * 1000),
+                })
+                logger.warning(
+                    "[GEMINI_AGENTE_SENIOR] Fallo de conexión con el modelo '%s' (%s).",
+                    modelo,
+                    type(exc).__name__,
+                )
+
+        raise AsistenteServiceError(
+            detail="Gemini no se encuentra disponible temporalmente.",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            codigo="gemini_no_disponible",
         )
 
     @staticmethod
