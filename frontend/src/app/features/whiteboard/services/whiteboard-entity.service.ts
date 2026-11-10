@@ -158,7 +158,11 @@ function generarGruposPuertos(tema: TemaColores) {
         items: PUERTOS_ITEMS
       },
       attrs: {
-        root: { cursor: 'move' },
+        root: {
+          cursor: 'move',
+          class: 'joint-element figura-entidad-lienzo',
+          'data-entidad-id': entidad.id
+        },
         body: {
           fill:        tema.entidadFondo,
           stroke:      tema.entidadBorde,

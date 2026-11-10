@@ -28,6 +28,7 @@
       <div class="header-actions">
         <!-- Interruptor IA Local -->
         <button
+          id="switch-ia-local"
           type="button"
           class="switch-ia-local"
           role="switch"
@@ -44,6 +45,7 @@
 
         <!-- Botón Recargar Historial -->
         <button
+          id="btn-recargar-historial-senior"
           type="button"
           class="btn-header-accion"
           (click)="recargarHistorial()"
@@ -60,6 +62,7 @@
 
         <!-- Botón Cerrar -->
         <button
+          id="btn-cerrar-chat-senior"
           type="button"
           class="btn-header-accion btn-cerrar"
           (click)="cerrarChat()"
@@ -177,6 +180,7 @@
 
       <div class="input-contenedor">
         <textarea
+          id="input-consulta-senior"
           #seniorInput
           class="input-texto-senior"
           [(ngModel)]="textoConsulta"
@@ -189,6 +193,7 @@
         ></textarea>
 
         <button
+          id="btn-enviar-consulta-senior"
           type="button"
           class="btn-enviar-senior"
           (click)="enviarConsulta()"
@@ -208,6 +213,7 @@
 
   <!-- ── 2. BOTÓN FLOTANTE PRINCIPAL (AGENTE SENIOR) ── -->
   <button
+    id="btn-fab-agente-senior"
     type="button"
     class="btn-fab-senior"
     [class.fab-abierto]="chatAbierto"

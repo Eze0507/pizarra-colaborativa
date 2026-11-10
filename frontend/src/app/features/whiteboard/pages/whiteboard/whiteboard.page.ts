@@ -53,6 +53,7 @@ import { ModalColaboradoresComponent } from '../../components/modal-colaboradore
 import { ChatAsistenteIaComponent } from '../../components/chat-asistente-ia/chat-asistente-ia.component';
 import { ChatAgenteSeniorComponent } from '../../components/chat-agente-senior/chat-agente-senior.component';
 import { ToastContainerComponent } from '../../../../shared/components/toast-container/toast-container.component';
+import { AsistenteAyudaComponent } from '../../../../shared/components/asistente-ayuda/asistente-ayuda.component';
 import {
   ConfiguracionGeneracionSpring,
   ModalGeneracionSpringComponent
@@ -99,7 +100,8 @@ import {
     ModalPropiedadesRelacionComponent,
     ModalColaboradoresComponent,
     ModalGeneracionSpringComponent,
-    ToastContainerComponent
+    ToastContainerComponent,
+    AsistenteAyudaComponent
   ],
   providers: [
     DiagramHistoryService,

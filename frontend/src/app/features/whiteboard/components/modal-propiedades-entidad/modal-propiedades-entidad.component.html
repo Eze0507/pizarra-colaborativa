@@ -15,7 +15,7 @@
           <p class="modal-subtitle">Configura el nombre, estado y gestiona las columnas de la tabla</p>
         </div>
       </div>
-      <button type="button" class="btn-close" (click)="onCancelar()" aria-label="Cerrar">
+      <button id="btn-cerrar-modal-entidad" type="button" class="btn-close" (click)="onCancelar()" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -52,7 +52,7 @@
             <option value="interfaz">Interfaz</option>
           </select>
           <label *ngIf="tipoClasificador !== 'interfaz'" class="check-inline-label">
-            <input type="checkbox" [(ngModel)]="abstracto" /> Abstracta
+            <input id="check-abstracta-entidad" type="checkbox" [(ngModel)]="abstracto" /> Abstracta
           </label>
         </div>
 
@@ -80,6 +80,7 @@
             <span class="atributos-contador">{{ atributos.length }}</span>
           </div>
           <button
+            id="btn-agregar-atributo-entidad"
             type="button"
             class="btn-agregar-atributo"
             (click)="agregarAtributo()"
@@ -223,6 +224,7 @@
     <!-- Footer -->
     <div class="modal-footer">
       <button
+        id="btn-cancelar-propiedades-entidad"
         type="button"
         class="btn-modal btn-secundario"
         (click)="onCancelar()"
@@ -230,6 +232,7 @@
         Cancelar
       </button>
       <button
+        id="btn-guardar-propiedades-entidad"
         type="button"
         class="btn-modal btn-primario"
         (click)="onGuardar()"

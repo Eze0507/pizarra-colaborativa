@@ -22,7 +22,7 @@
   <div *ngIf="conflictoRevision" class="revision-conflict" role="alert">
     <strong>{{ conflictoRevision.mensaje || 'No se confirmó el cambio del diagrama.' }}</strong>
     <span>Se conservaron tus cambios locales y se suspendió el autoguardado.</span>
-    <button type="button" (click)="onRecargarTrasConflicto()">Recuperar estado remoto</button>
+    <button id="btn-recuperar-estado-remoto" type="button" (click)="onRecargarTrasConflicto()">Recuperar estado remoto</button>
   </div>
 
   <!-- Barra lateral de la pizarra -->
@@ -161,5 +161,8 @@
 
     <!-- Notificaciones Toast Flotantes -->
     <app-toast-container></app-toast-container>
+
+    <!-- Panel de Asistente de Ayuda (CU-14 Pizarra) -->
+    <app-asistente-ayuda [interfaz]="'pizarra'"></app-asistente-ayuda>
   </div>
 </div>

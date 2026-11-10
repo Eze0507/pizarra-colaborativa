@@ -1,0 +1,645 @@
+/* ==========================================================================
+   CU-14: PANEL FLOTANTE DEL ASISTENTE DE AYUDA (ÁMBITO DASHBOARD)
+   Diseño unificado con el Chat del Agente Senior Colaborativo
+   Jerarquía de apilamiento superior a modales (z-index: 99999)
+   ========================================================================== */
+
+:host {
+  display: block;
+}
+
+.asistente-ayuda-panel {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Tokens Modo Oscuro (Idénticos al Agente Senior) */
+  --sr-text: #ededed;
+  --sr-text-muted: #888888;
+  --sr-text-sub: #a3a3a3;
+
+  --sr-panel-bg: #1a1a1a;
+  --sr-panel-border: rgba(255, 255, 255, 0.1);
+  --sr-panel-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.14);
+
+  --sr-header-bg: #141414;
+  --sr-header-border: rgba(255, 255, 255, 0.08);
+
+  --sr-body-bg: #111111;
+  --sr-scrollbar: #333333;
+
+  --sr-burbuja-propia-bg: #1e3a5f;
+  --sr-burbuja-propia-border: rgba(0, 163, 255, 0.4);
+  --sr-burbuja-propia-color: #ededed;
+
+  --sr-burbuja-agente-bg: transparent;
+  --sr-burbuja-agente-border: transparent;
+  --sr-burbuja-agente-color: #ededed;
+
+  --sr-input-bar-bg: #111111;
+  --sr-input-bar-border: rgba(255, 255, 255, 0.06);
+  --sr-input-bg: rgba(22, 22, 22, 0.94);
+  --sr-input-border: rgba(0, 163, 255, 0.45);
+  --sr-input-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 163, 255, 0.22);
+  --sr-input-color: #ededed;
+  --sr-input-ph: #737373;
+  --sr-send-disabled-bg: #242424;
+  --sr-send-disabled-color: #525252;
+  --sr-input-scroll-track: #161616;
+  --sr-input-scroll-thumb: #333333;
+  --sr-input-scroll-thumb-hover: #4a4a4a;
+
+  position: fixed;
+  z-index: 99999;
+  width: 420px;
+  height: 550px;
+  max-height: calc(100vh - 40px);
+  max-width: calc(100vw - 24px);
+  background-color: var(--sr-panel-bg);
+  border: 1px solid var(--sr-panel-border);
+  border-radius: 12px;
+  box-shadow: var(--sr-panel-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+  color: var(--sr-text);
+  animation: senior-panel-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.asistente-ayuda-panel.panel-minimizado {
+  height: 54px;
+  min-height: 54px;
+  max-height: 54px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes senior-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── 1. Cabecera (Estilo Chat Agente Senior) ── */
+
+.chat-senior-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background-color: var(--sr-header-bg);
+  border-bottom: 1px solid var(--sr-header-border);
+  gap: 8px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Icono de agarre exclusivo para arrastrar (Requisito Especial CU-14) */
+.drag-handle {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--sr-text-muted);
+  cursor: grab;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.drag-handle:hover {
+  color: #00a3ff;
+  background-color: rgba(0, 163, 255, 0.12);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.senior-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.65);
+  flex-shrink: 0;
+}
+
+.senior-dot.dot-ocupado {
+  background-color: #00a3ff;
+  box-shadow: 0 0 8px rgba(0, 163, 255, 0.8);
+}
+
+.header-titulos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sr-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-status {
+  font-size: 10.5px;
+  color: var(--sr-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-header-accion {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--sr-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-header-accion:hover:not(:disabled) {
+  background-color: rgba(128, 128, 128, 0.12);
+  color: var(--sr-text);
+}
+
+.btn-header-accion:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-header-accion.btn-cerrar:hover {
+  color: #ef4444;
+}
+
+.btn-header-accion svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── 2. Contenedor de Mensajes ── */
+
+.chat-senior-mensajes {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--sr-body-bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--sr-scrollbar) #161616;
+}
+
+.chat-senior-mensajes::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-senior-mensajes::-webkit-scrollbar-track {
+  background: #161616;
+  border-radius: 3px;
+}
+
+.chat-senior-mensajes::-webkit-scrollbar-thumb {
+  background: var(--sr-scrollbar);
+  border-radius: 3px;
+}
+
+/* ── Estado Vacío (Estilo Chat Agente Senior) ── */
+
+.chat-vacio {
+  margin: auto;
+  text-align: center;
+  padding: 16px 12px;
+  max-width: 340px;
+}
+
+.vacio-icono {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 163, 255, 0.1);
+  border: 1px solid rgba(0, 163, 255, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px auto;
+  color: #00a3ff;
+}
+
+.vacio-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+.vacio-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sr-text);
+  margin: 0 0 6px 0;
+}
+
+.vacio-texto {
+  font-size: 12px;
+  color: var(--sr-text-sub);
+  line-height: 1.45;
+  margin: 0 0 12px 0;
+}
+
+.vacio-lista {
+  text-align: left;
+  font-size: 11px;
+  color: var(--sr-text-muted);
+  padding-left: 18px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.vacio-item-sugerencia {
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
+  outline: none;
+}
+
+.vacio-item-sugerencia:hover,
+.vacio-item-sugerencia:focus-visible {
+  color: #00a3ff;
+  transform: translateX(2px);
+}
+
+/* ── Burbujas de Mensajes (Estilo Agente Senior) ── */
+
+.chat-burbuja {
+  max-width: 88%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.48;
+  word-break: break-word;
+  border: 1px solid transparent;
+}
+
+.burbuja-propia {
+  align-self: flex-end;
+  background-color: var(--sr-burbuja-propia-bg);
+  border-color: var(--sr-burbuja-propia-border);
+  color: var(--sr-burbuja-propia-color);
+}
+
+.burbuja-agente {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  padding: 6px 4px;
+  border-radius: 0;
+  background-color: transparent;
+  border: none;
+  color: var(--sr-burbuja-agente-color);
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.burbuja-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  margin-bottom: 4px;
+  opacity: 0.9;
+}
+
+.burbuja-autor {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-ia {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: rgba(0, 163, 255, 0.16);
+  border: 1px solid rgba(0, 163, 255, 0.4);
+  color: #00a3ff;
+}
+
+.burbuja-meta-agente {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.badge-proveedor {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.burbuja-hora {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+.burbuja-cuerpo {
+  white-space: pre-wrap;
+}
+
+.burbuja-markdown {
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.md-p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--sr-text);
+}
+
+.md-heading {
+  margin: 4px 0 2px 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sr-text);
+  letter-spacing: -0.1px;
+}
+
+.md-ol {
+  margin: 2px 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.md-li {
+  line-height: 1.45;
+  color: var(--sr-text);
+}
+
+/* Estado Procesando */
+.burbuja-estado-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 4px;
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.burbuja-estado-agente {
+  border-top: none;
+}
+
+.estado-procesando {
+  color: #38bdf8;
+}
+
+.spinner-mini {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(0, 163, 255, 0.25);
+  border-top-color: #00a3ff;
+  border-radius: 50%;
+  animation: sr-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes sr-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Badge de Cambio de Vista (FA-01) */
+.badge-cambio-vista {
+  display: inline-block;
+  padding: 7px 11px;
+  background-color: #202227;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: var(--sr-text, #ededed);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* Botón de Re-iluminar componente */
+.accion-componente-box {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.btn-resaltar-componente {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background-color: rgba(0, 163, 255, 0.12);
+  border: 1px solid rgba(0, 163, 255, 0.4);
+  border-radius: 6px;
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-resaltar-componente:hover {
+  background-color: rgba(0, 163, 255, 0.22);
+  border-color: #00a3ff;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.pulsing-blue-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #00a3ff;
+  box-shadow: 0 0 8px #00a3ff;
+  animation: bluePulse 1.2s infinite alternate;
+}
+
+@keyframes bluePulse {
+  from { opacity: 0.4; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1.2); }
+}
+
+/* Estado Error (FE-01) */
+.error-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #fca5a5;
+}
+
+.error-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #ef4444;
+}
+
+.error-msg {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* ── 3. Barra de Entrada Inferior (Estilo Chat Agente Senior) ── */
+
+.chat-senior-input-bar {
+  padding: 10px 12px;
+  background-color: var(--sr-input-bar-bg);
+  border-top: 1px solid var(--sr-input-bar-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.input-contenedor {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 8px 6px 16px;
+  background-color: var(--sr-input-bg);
+  border: 1px solid var(--sr-input-border);
+  border-radius: 24px;
+  box-shadow: var(--sr-input-shadow);
+  backdrop-filter: blur(12px);
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-contenedor:focus-within {
+  border-color: #00a3ff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2), 0 0 18px rgba(0, 163, 255, 0.35);
+}
+
+.input-texto-senior {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  max-height: 116px;
+  background: transparent;
+  border: none;
+  color: var(--sr-input-color);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 6px 4px 6px 0;
+  margin: 0;
+  resize: none;
+  outline: none;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sr-input-scroll-thumb) var(--sr-input-scroll-track);
+}
+
+.input-texto-senior::-webkit-scrollbar {
+  width: 6px;
+}
+
+.input-texto-senior::-webkit-scrollbar-track {
+  background: var(--sr-input-scroll-track);
+  border-radius: 4px;
+}
+
+.input-texto-senior::-webkit-scrollbar-thumb {
+  background: var(--sr-input-scroll-thumb);
+  border-radius: 4px;
+}
+
+.input-texto-senior::-webkit-scrollbar-thumb:hover {
+  background: var(--sr-input-scroll-thumb-hover);
+}
+
+.input-texto-senior::placeholder {
+  color: var(--sr-input-ph);
+}
+
+.input-texto-senior:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-enviar-senior {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background-color: #00a3ff;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease;
+}
+
+.btn-enviar-senior:hover:not(:disabled) {
+  background-color: #008be5;
+  box-shadow: 0 0 12px rgba(0, 163, 255, 0.5);
+  transform: scale(1.03);
+}
+
+.btn-enviar-senior:disabled {
+  background-color: var(--sr-send-disabled-bg);
+  color: var(--sr-send-disabled-color);
+  cursor: not-allowed;
+}
+
+.btn-enviar-senior svg {
+  width: 15px;
+  height: 15px;
+}

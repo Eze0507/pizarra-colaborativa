@@ -308,8 +308,6 @@ export class WhiteboardSocketService {
 
   private prepararSnapshot(datos: Record<string, unknown>): SnapshotPendiente | null {
     const copy = JSON.parse(JSON.stringify(datos)) as Record<string, unknown>;
-    const entities = copy['entidades'] as EntidadDiagrama[] | undefined;
-    entities?.forEach(e => { if (e.estado === 'bloqueado') e.estado = 'activo'; });
     const serialized = JSON.stringify(copy);
     if (serialized === this.ultimoSnapshotLocal) return null;
     this.ultimoSnapshotLocal = serialized;

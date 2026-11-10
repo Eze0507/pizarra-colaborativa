@@ -19,6 +19,7 @@ from rest_framework.test import APIClient
 from .consumers import PizarraConsumer
 from .history import (save_snapshot, execute_history, load_history, current_state, to_snapshot,
                       HistoryError, StaleRevision, acquire_lock)
+from .consistency import read_authoritative_state
 from .models import (Proyecto, Entidad, Atributo, Operacion, ParametroOperacion, Relacion,
                      DiagramHistoryOperation as History, DiagramHistoryReceipt as Receipt, DiagramEditLock)
 from usuario.models import UserColaborador
@@ -302,6 +303,20 @@ class HistoryTests(TestCase):
         self.command('redo')
         self.assertFalse(Entidad.objects.exclude(estado='activo').exists())
         self.assertFalse(DiagramEditLock.objects.filter(expires_at__gt=timezone.now()).exists())
+
+    def test_estado_bloqueado_persists_in_snapshot_and_authoritative_state(self):
+        snap = diagram()
+        snap['entidades'][0]['estado'] = 'bloqueado'
+        res = self.save(snap)
+        self.assertTrue(res['exito'])
+        self.project.refresh_from_db()
+        ent = self.project.entidades.get(nombre='unidad')
+        self.assertEqual(ent.estado, 'bloqueado')
+        current = current_state(self.project.id)
+        self.assertEqual(current['entidades'][str(ent.id)]['estado'], 'bloqueado')
+        auth = read_authoritative_state(self.project.id)
+        auth_ent = next(e for e in auth.entities if e['id'] == ent.id)
+        self.assertEqual(auth_ent['estado'], 'bloqueado')
 
     def test_request_receipts_prevent_duplicate_save_and_history_even_with_stale_revision(self):
         snap = diagram()

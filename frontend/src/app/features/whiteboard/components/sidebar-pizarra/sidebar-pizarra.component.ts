@@ -22,6 +22,7 @@ import {
 import { AsistenteIaService } from '../../services/asistente-ia.service';
 import { ToastNotificationService } from '../../../../core/services/toast-notification.service';
 import { WhiteboardApiService } from '../../services/whiteboard-api.service';
+import { AyudaService } from '../../../../core/services/ayuda.service';
 import {
   HallazgoValidacion,
   PerfilValidacion,
@@ -42,6 +43,7 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
   private readonly asistenteIaService = inject(AsistenteIaService);
   private readonly toastService = inject(ToastNotificationService);
   private readonly apiService = inject(WhiteboardApiService);
+  private readonly ayudaService = inject(AyudaService);
 
   @Input() public proyecto: ProyectoDiagrama | null = null;
   @Input() public estadoConexion: EstadoConexion = 'desconectado';
@@ -343,5 +345,9 @@ export class SidebarPizarraComponent implements OnInit, OnChanges {
       this.importarXml.emit(archivo);
       input.value = '';
     }
+  }
+
+  public abrirAyudaPizarra(): void {
+    this.ayudaService.abrirPanel();
   }
 }

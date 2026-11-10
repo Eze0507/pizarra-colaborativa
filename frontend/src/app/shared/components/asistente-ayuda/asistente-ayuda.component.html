@@ -1,0 +1,237 @@
+<div
+  *ngIf="visible"
+  #panelRef
+  class="asistente-ayuda-panel modo-oscuro"
+  [class.panel-minimizado]="minimizado"
+  [style.left.px]="panelLeft"
+  [style.top.px]="panelTop"
+  role="dialog"
+  aria-labelledby="titulo-asistente-ayuda"
+>
+  <!-- Cabecera del Panel ( Estilo Agente Senior + Icono de agarre CU-14 ) -->
+  <div class="chat-senior-header">
+    <div class="header-info">
+      <!-- Icono de Agarre exclusivo para arrastrar (Requisito Especial CU-14) -->
+      <button
+        type="button"
+        class="drag-handle"
+        (mousedown)="iniciarArrastre($event)"
+        title="Arrastrar panel de ayuda"
+        aria-label="Arrastrar panel"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="6" r="1.2"></circle>
+          <circle cx="15" cy="6" r="1.2"></circle>
+          <circle cx="9" cy="12" r="1.2"></circle>
+          <circle cx="15" cy="12" r="1.2"></circle>
+          <circle cx="9" cy="18" r="1.2"></circle>
+          <circle cx="15" cy="18" r="1.2"></circle>
+        </svg>
+      </button>
+
+      <span
+        class="senior-dot"
+        [class.dot-ocupado]="cargando"
+      ></span>
+
+      <div class="header-titulos">
+        <span id="titulo-asistente-ayuda" class="header-title">Asistente de Ayuda</span>
+        <span class="header-status">
+          <ng-container *ngIf="cargando; else libreTpl">
+            Procesando consulta...
+          </ng-container>
+          <ng-template #libreTpl>Disponible · Guía de {{ interfaz === 'pizarra' ? 'la Pizarra' : 'el Dashboard' }}</ng-template>
+        </span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Botón Limpiar Historial -->
+      <button
+        *ngIf="!minimizado && mensajes.length > 0"
+        type="button"
+        class="btn-header-accion"
+        (click)="limpiarHistorial()"
+        [disabled]="cargando"
+        title="Limpiar conversación"
+        aria-label="Limpiar conversación"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+
+      <!-- Botón Minimizar / Restaurar (FA-04) -->
+      <button
+        type="button"
+        class="btn-header-accion"
+        (click)="toggleMinimizar()"
+        [title]="minimizado ? 'Restaurar panel' : 'Minimizar panel'"
+        [attr.aria-label]="minimizado ? 'Restaurar' : 'Minimizar'"
+      >
+        <svg *ngIf="!minimizado" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <svg *ngIf="minimizado" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <polyline points="9 21 3 21 3 15"></polyline>
+          <line x1="21" y1="3" x2="14" y2="10"></line>
+          <line x1="3" y1="21" x2="10" y2="14"></line>
+        </svg>
+      </button>
+
+      <!-- Botón Cerrar (FA-04) -->
+      <button
+        type="button"
+        class="btn-header-accion btn-cerrar"
+        (click)="cerrar()"
+        title="Cerrar panel de Asistente de Ayuda"
+        aria-label="Cerrar panel"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Contenido y Chat (Visible únicamente cuando no está minimizado) -->
+  <ng-container *ngIf="!minimizado">
+    <!-- Contenedor de Mensajes -->
+    <div #mensajesContainer class="chat-senior-mensajes">
+
+      <!-- Estado Vacío -->
+      <div *ngIf="mensajes.length === 0" class="chat-vacio">
+        <div class="vacio-icono">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <path d="M8 9h8"></path>
+            <path d="M8 13h5"></path>
+          </svg>
+        </div>
+        <p class="vacio-titulo">Guía Interactiva {{ interfaz === 'pizarra' ? 'de la Pizarra' : 'del Dashboard' }}</p>
+        <p *ngIf="interfaz !== 'pizarra'" class="vacio-texto">
+          Consulta dudas sobre cómo crear proyectos, filtrar, gestionar invitaciones o navegar. Te guiaré paso a paso e iluminaré el componente donde inicia la acción.
+        </p>
+        <p *ngIf="interfaz === 'pizarra'" class="vacio-texto">
+          Consulta dudas sobre modelado UML, creación de entidades, generación Spring Boot, bocetos con IA o atajos. Te guiaré paso a paso e iluminaré el componente donde inicia la acción.
+        </p>
+        <ul class="vacio-lista">
+          <li
+            *ngFor="let sug of sugerenciasRapidas"
+            class="vacio-item-sugerencia"
+            (click)="usarSugerencia(sug)"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="usarSugerencia(sug)"
+          >
+            "{{ sug }}"
+          </li>
+        </ul>
+      </div>
+
+      <!-- Listado de Mensajes (USER y AGENT) -->
+      <div
+        *ngFor="let msg of mensajes"
+        class="chat-burbuja"
+        [class.burbuja-propia]="msg.remitente === 'usuario'"
+        [class.burbuja-agente]="msg.remitente === 'asistente'"
+      >
+        <!-- Meta Usuario -->
+        <div *ngIf="msg.remitente === 'usuario'" class="burbuja-meta">
+          <span class="burbuja-autor">Tú</span>
+          <span class="burbuja-hora">{{ msg.fecha | date:'shortTime' }}</span>
+        </div>
+
+        <!-- Cuerpo Usuario -->
+        <div *ngIf="msg.remitente === 'usuario'" class="burbuja-cuerpo">{{ msg.texto }}</div>
+
+        <!-- Cuerpo Agente -->
+        <ng-container *ngIf="msg.remitente === 'asistente'">
+          <!-- Estado Procesando -->
+          <div *ngIf="msg.cargando" class="burbuja-estado-footer burbuja-estado-agente">
+            <span class="spinner-mini"></span>
+            <span class="estado-texto estado-procesando">Procesando con el Asistente de Ayuda...</span>
+          </div>
+
+          <!-- Error de comunicación (FE-01) -->
+          <div *ngIf="msg.error" class="error-box">
+            <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p class="error-msg">{{ msg.error }}</p>
+          </div>
+
+          <!-- Respuesta Estructurada Exitosa -->
+          <div *ngIf="!msg.cargando && msg.respuesta as r" class="burbuja-cuerpo burbuja-markdown">
+            <p class="md-p">{{ r.explicacion }}</p>
+
+            <!-- Aviso de Cambio de Vista (FA-01) -->
+            <div *ngIf="r.requiere_cambio_vista" class="badge-cambio-vista">
+              <span>{{ r.vista_destino === 'dashboard' ? 'Esta acción se realiza dentro del Dashboard de proyectos.' : 'Esta acción se realiza dentro de la Pizarra de modelado del proyecto.' }}</span>
+            </div>
+
+            <!-- Lista Numerada de Pasos -->
+            <ng-container *ngIf="r.pasos && r.pasos.length > 0">
+              <p class="md-heading">Pasos a seguir:</p>
+              <ol class="md-ol">
+                <li *ngFor="let p of r.pasos" class="md-li">
+                  {{ limpiarTextoPaso(p) }}
+                </li>
+              </ol>
+            </ng-container>
+
+            <!-- Botón para Re-iluminar componente en pantalla -->
+            <div *ngIf="r.componente_id" class="accion-componente-box">
+              <button
+                type="button"
+                class="btn-resaltar-componente"
+                (click)="volverAResaltar(r.componente_id)"
+                title="Volver a resaltar el elemento en pantalla"
+              >
+                <span class="pulsing-blue-dot"></span>
+                <span>Resaltar elemento en pantalla</span>
+              </button>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+
+    </div>
+
+    <!-- Barra de Entrada Inferior (Estilo Agente Senior) -->
+    <div class="chat-senior-input-bar">
+      <div class="input-contenedor">
+        <textarea
+          #inputPregunta
+          class="input-texto-senior"
+          [(ngModel)]="textoConsulta"
+          (input)="ajustarAlturaInput()"
+          (keydown)="onKeydownInput($event)"
+          placeholder="Pregúntale al Asistente de Ayuda"
+          rows="1"
+          maxlength="600"
+          [disabled]="cargando"
+        ></textarea>
+
+        <button
+          type="button"
+          class="btn-enviar-senior"
+          (click)="enviarPregunta()"
+          [disabled]="!textoConsulta.trim() || cargando"
+          title="Enviar consulta al Asistente de Ayuda"
+          aria-label="Enviar consulta"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </ng-container>
+</div>

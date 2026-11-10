@@ -62,7 +62,7 @@ def current_state(project_id):
         entity = deepcopy(item)
         attrs = entity.pop('atributos', [])
         operations = entity.pop('operaciones', [])
-        entity['estado'] = 'activo'  # jamás restaurar bloqueos históricos
+        entity['estado'] = item.get('estado') or 'activo'
         state['entidades'][str(entity['id'])] = entity
         for attr in attrs:
             state['atributos'][str(attr['id'])] = {**attr, 'entidad_id': entity['id']}

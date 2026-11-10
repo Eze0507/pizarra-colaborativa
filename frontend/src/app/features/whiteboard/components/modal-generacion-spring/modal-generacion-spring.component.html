@@ -5,24 +5,25 @@
         <h2 id="spring-modal-title">Generación Java</h2>
         <p>Genera y descarga un proyecto Spring Boot desde la revisión confirmada.</p>
       </div>
-      <button type="button" class="close" [disabled]="generando" (click)="cerrar.emit()" aria-label="Cerrar">×</button>
+      <button id="btn-cerrar-modal-spring" type="button" class="close" [disabled]="generando" (click)="cerrar.emit()" aria-label="Cerrar">×</button>
     </header>
 
     <div class="spring-form">
       <label>
         Nombre del proyecto
-        <input name="springProjectName" [(ngModel)]="nombreProyecto" (blur)="normalizarNombreProyecto()" maxlength="64" autocomplete="off" placeholder="tienda" />
+        <input id="input-nombre-proyecto-spring" name="springProjectName" [(ngModel)]="nombreProyecto" (blur)="normalizarNombreProyecto()" maxlength="64" autocomplete="off" placeholder="tienda" />
       </label>
       <small class="field-error" *ngIf="errorNombre">{{ errorNombre }}</small>
 
       <label>
         Paquete base Java
-        <input name="springBasePackage" [(ngModel)]="paqueteBase" maxlength="200" autocomplete="off" placeholder="com.ejemplo.tienda" />
+        <input id="input-paquete-base-spring" name="springBasePackage" [(ngModel)]="paqueteBase" maxlength="200" autocomplete="off" placeholder="com.ejemplo.tienda" />
       </label>
       <small class="field-error" *ngIf="errorPaquete">{{ errorPaquete }}</small>
 
       <section class="advanced-section">
         <button
+          id="btn-toggle-opciones-avanzadas-spring"
           type="button"
           class="advanced-toggle"
           [attr.aria-expanded]="opcionesAvanzadasAbiertas"
@@ -66,14 +67,15 @@
 
       <div class="blocked" *ngIf="!puedeGenerar && motivoBloqueo" role="status">
         {{ motivoBloqueo }}
-        <button *ngIf="puedeGuardar" type="button" (click)="guardar.emit()">Guardar ahora</button>
+        <button id="btn-guardar-ahora-spring" *ngIf="puedeGuardar" type="button" (click)="guardar.emit()">Guardar ahora</button>
       </div>
       <div class="server-error" *ngIf="errorServidor" role="alert">{{ errorServidor }}</div>
     </div>
 
     <footer>
-      <button type="button" class="secondary" [disabled]="generando" (click)="cerrar.emit()">Cancelar</button>
+      <button id="btn-cancelar-generar-spring" type="button" class="secondary" [disabled]="generando" (click)="cerrar.emit()">Cancelar</button>
       <button
+        id="btn-confirmar-generar-spring"
         type="button"
         class="primary"
         [disabled]="!formularioValido || !puedeGenerar || generando"

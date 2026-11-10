@@ -4,11 +4,12 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .serializers import EnviarConsultaAgenteSeniorSerializer
+from .serializers import EnviarConsultaAgenteSeniorSerializer, ConsultarAyudaSerializer
 from .services import AsistenteServiceError
 from .services.diagrama_imagen_service import DiagramaImagenService
 from .services.instruccion_asistente_service import InstruccionAsistenteService
 from .services.agente_senior_service import AgenteSeniorService
+from .services.ayuda_asistente_service import AyudaAsistenteService
 
 
 class GenerarDiagramaDesdeImagenView(APIView):
@@ -86,5 +87,31 @@ class AgenteSeniorConversacionView(APIView):
                 usar_ia_local=usar_ia_local
             )
             return Response(resultado, status=status.HTTP_201_CREATED)
+        except AsistenteServiceError as exc:
+            return Response(exc.to_dict(), status=exc.status_code)
+
+
+class ConsultarAyudaView(APIView):
+    """
+    Endpoint para el CU-14: Consultar Asistente de Ayuda de la herramienta CASE.
+    Procesa consultas en lenguaje natural mediante Google Gemini sobre el manual
+    y los componentes de la interfaz actual (ej: 'dashboard').
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ConsultarAyudaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        consulta = serializer.validated_data['consulta']
+        interfaz = serializer.validated_data.get('interfaz', 'dashboard')
+
+        try:
+            resultado = AyudaAsistenteService.consultar_ayuda(
+                consulta=consulta,
+                interfaz=interfaz
+            )
+            return Response(resultado, status=status.HTTP_200_OK)
         except AsistenteServiceError as exc:
             return Response(exc.to_dict(), status=exc.status_code)

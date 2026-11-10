@@ -97,3 +97,22 @@ class EnviarConsultaAgenteSeniorSerializer(serializers.Serializer):
         help_text="Si es True, la consulta es respondida por el agente local; si es False, usa Gemini con respaldo en el agente local."
     )
 
+
+class ConsultarAyudaSerializer(serializers.Serializer):
+    """
+    Serializer de entrada para el CU-14: Consultar Asistente de Ayuda de la herramienta CASE.
+    """
+    consulta = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        max_length=600,
+        help_text="Consulta en lenguaje natural sobre una funcionalidad, herramienta o proceso."
+    )
+    interfaz = serializers.CharField(
+        required=False,
+        default='dashboard',
+        max_length=50,
+        help_text="Identificador de la interfaz activa del usuario (ej: 'dashboard', 'pizarra')."
+    )
+
+

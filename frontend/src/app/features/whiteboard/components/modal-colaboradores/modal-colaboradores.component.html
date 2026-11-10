@@ -20,7 +20,7 @@
           <p class="modal-subtitulo">Invita y gestiona quién puede diseñar en esta pizarra</p>
         </div>
       </div>
-      <button type="button" class="btn-cerrar-modal" (click)="onCerrar()" title="Cerrar (Esc)">
+      <button id="btn-cerrar-modal-colaboradores-header" type="button" class="btn-cerrar-modal" (click)="onCerrar()" title="Cerrar (Esc)">
         ✕
       </button>
     </div>
@@ -46,6 +46,7 @@
             </div>
 
             <input
+              id="input-buscar-colaborador"
               type="text"
               class="busqueda-input"
               placeholder="Buscar usuario por username o email..."
@@ -92,6 +93,7 @@
 
           <!-- ICONO DE MENSAJE: Aparece al seleccionar un usuario -->
           <button
+            id="btn-abrir-invitacion-colaborador"
             *ngIf="usuarioSeleccionado"
             type="button"
             class="btn-icono-mensaje"
@@ -126,6 +128,7 @@
 
           <div class="confirmacion-acciones">
             <button
+              id="btn-cancelar-invitacion-colaborador"
               type="button"
               class="btn-cancelar-popover"
               (click)="cancelarConfirmacionInvitacion()"
@@ -134,6 +137,7 @@
               Cancelar
             </button>
             <button
+              id="btn-enviar-invitacion-colaborador"
               type="button"
               class="btn-enviar-popover"
               (click)="enviarInvitacion()"
@@ -158,6 +162,7 @@
             <span class="badge-contador">{{ colaboradores.length }}</span>
           </h3>
           <button
+            id="btn-recargar-colaboradores"
             type="button"
             class="btn-recargar-lista"
             (click)="cargarColaboradores()"
@@ -272,7 +277,7 @@
 
     <!-- Pie del Modal -->
     <div class="modal-footer">
-      <button type="button" class="btn-cerrar-footer" (click)="onCerrar()">
+      <button id="btn-cerrar-modal-colaboradores" type="button" class="btn-cerrar-footer" (click)="onCerrar()">
         Cerrar
       </button>
     </div>

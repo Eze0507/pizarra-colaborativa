@@ -7,6 +7,7 @@ import { ToastNotificationService } from '../../../../core/services/toast-notifi
 import { User } from '../../../auth/interfaces/user.interface';
 import { InvitacionesService } from '../../services/invitaciones.service';
 import { InvitacionPendiente, RespuestaAceptarInvitacion } from '../../interfaces/invitacion.interface';
+import { AyudaService } from '../../../../core/services/ayuda.service';
 
 @Component({
   selector: 'app-header',
@@ -19,6 +20,7 @@ export class HeaderComponent implements OnInit {
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly invitacionesService = inject(InvitacionesService);
   private readonly toastService = inject(ToastNotificationService);
+  public readonly ayudaService = inject(AyudaService);
 
   public currentUser: User | null = null;
   public isPopoverOpen = false;
@@ -26,10 +28,15 @@ export class HeaderComponent implements OnInit {
 
   public readonly invitaciones$: Observable<InvitacionPendiente[]> = this.invitacionesService.invitaciones$;
   public readonly conteo$: Observable<number> = this.invitacionesService.conteoPendientes$;
+  public readonly isHelpOpen$: Observable<boolean> = this.ayudaService.panelVisible$;
 
   public ngOnInit(): void {
     this.currentUser = this.tokenStorage.getUser();
     this.cargarInvitaciones();
+  }
+
+  public toggleAyuda(): void {
+    this.ayudaService.togglePanel();
   }
 
   public cargarInvitaciones(): void {

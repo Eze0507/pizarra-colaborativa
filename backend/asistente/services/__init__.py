@@ -424,6 +424,7 @@ class GeminiProviderService:
 from .diagrama_imagen_service import DiagramaImagenService  # noqa: E402
 from .instruccion_asistente_service import InstruccionAsistenteService  # noqa: E402
 from .agente_senior_service import AgenteSeniorService  # noqa: E402
+from .ayuda_asistente_service import AyudaAsistenteService  # noqa: E402
 
 __all__ = [
     'AsistenteServiceError',
@@ -432,4 +433,5 @@ __all__ = [
     'DiagramaImagenService',
     'InstruccionAsistenteService',
     'AgenteSeniorService',
+    'AyudaAsistenteService',
 ]

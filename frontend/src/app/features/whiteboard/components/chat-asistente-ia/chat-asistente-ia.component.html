@@ -9,10 +9,10 @@
     role="region"
     aria-label="Barra de instrucciones rápidas con IA"
   >
-    <button type="button" class="btn-historial" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"
+    <button id="btn-deshacer-lienzo" type="button" class="btn-historial" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"
       [disabled]="!habilitado || historialEnProceso || (!history.canUndo && !cargandoInstruccion)"
       (click)="history.execute({ action: 'undo' })">↶</button>
-    <button type="button" class="btn-historial" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"
+    <button id="btn-rehacer-lienzo" type="button" class="btn-historial" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"
       [disabled]="!habilitado || historialEnProceso || !history.canRedo"
       (click)="history.execute({ action: 'redo' })">↷</button>
     <!-- ESTADO 1: PROCESANDO INSTRUCCIÓN (Muestra spinner + el mensaje dicho/escrito) -->
@@ -28,6 +28,7 @@
     <ng-container *ngIf="!cargandoInstruccion">
       <!-- Botón de Micrófono -->
       <button
+        id="btn-microfono-ia"
         type="button"
         class="btn-pildora-mic"
         [class.mic-activo]="escuchandoMicrofono"
@@ -45,6 +46,7 @@
 
       <!-- Input para escribir o visualizar dictado en vivo -->
       <input
+        id="input-instruccion-ia"
         #instruccionInput
         type="text"
         class="input-pildora-ia"
@@ -57,6 +59,7 @@
 
       <!-- Botón Enviar -->
       <button
+        id="btn-enviar-instruccion-ia"
         type="button"
         class="btn-pildora-enviar"
         (click)="escuchandoMicrofono ? detenerMicrofonoYEnviar() : enviarInstruccion()"

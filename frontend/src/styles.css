@@ -40,3 +40,48 @@ app-root {
 button, input, select, textarea {
   font-family: inherit;
 }
+
+/* ==========================================================================
+   CU-14: Resaltado Visual de Componentes Asistente de Ayuda (Resplandor Azul)
+   ========================================================================== */
+.cu14-highlight-pulse,
+app-custom-button.cu14-highlight-pulse .custom-btn {
+  position: relative !important;
+  outline: 3px solid #00a3ff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(0, 163, 255, 0.4), 0 0 25px rgba(0, 163, 255, 0.65) !important;
+  animation: cu14PulseGlow 1.4s ease-in-out infinite alternate !important;
+  transition: all 0.3s ease !important;
+  z-index: 1000 !important;
+}
+
+/* Resaltado especial para figuras SVG de la Pizarra (JointJS) */
+svg .cu14-highlight-pulse,
+g.cu14-highlight-pulse,
+.joint-element.cu14-highlight-pulse,
+.figura-entidad-lienzo.cu14-highlight-pulse {
+  outline: none !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 0 8px #00a3ff) drop-shadow(0 0 20px rgba(0, 163, 255, 0.85)) !important;
+  animation: cu14SvgPulseGlow 1.4s ease-in-out infinite alternate !important;
+}
+
+@keyframes cu14PulseGlow {
+  0% {
+    outline-color: #0080d0;
+    box-shadow: 0 0 0 3px rgba(0, 163, 255, 0.35), 0 0 15px rgba(0, 163, 255, 0.5);
+  }
+  100% {
+    outline-color: #38bdf8;
+    box-shadow: 0 0 0 6px rgba(0, 163, 255, 0.7), 0 0 32px rgba(0, 163, 255, 0.95);
+  }
+}
+
+@keyframes cu14SvgPulseGlow {
+  0% {
+    filter: drop-shadow(0 0 6px #0080d0) drop-shadow(0 0 12px rgba(0, 163, 255, 0.5));
+  }
+  100% {
+    filter: drop-shadow(0 0 14px #38bdf8) drop-shadow(0 0 28px rgba(0, 163, 255, 0.95));
+  }
+}

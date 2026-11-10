@@ -14,7 +14,7 @@
           <p class="modal-subtitle">Configura el nombre del rol y las multiplicidades UML</p>
         </div>
       </div>
-      <button type="button" class="btn-close" (click)="onCancelar()" aria-label="Cerrar">
+      <button id="btn-cerrar-modal-relacion" type="button" class="btn-close" (click)="onCancelar()" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -60,7 +60,7 @@
       <div class="cardinalidades-grid">
         <div class="form-group">
           <label class="form-label">Tipo UML</label>
-          <select class="form-select" [(ngModel)]="tipo">
+          <select id="select-tipo-relacion-modal" class="form-select" [(ngModel)]="tipo">
             <option value="asociacion">Asociación</option><option value="agregacion">Agregación</option>
             <option value="composicion">Composición</option><option value="herencia">Herencia</option>
             <option value="implementacion">Implementación</option>
@@ -143,6 +143,7 @@
     <!-- Footer -->
     <div class="modal-footer">
       <button
+        id="btn-eliminar-propiedades-relacion"
         type="button"
         class="btn-modal btn-peligro"
         (click)="onEliminar()"
@@ -155,6 +156,7 @@
         Eliminar
       </button>
       <button
+        id="btn-cancelar-propiedades-relacion"
         type="button"
         class="btn-modal btn-secundario"
         (click)="onCancelar()"
@@ -162,6 +164,7 @@
         Cancelar
       </button>
       <button
+        id="btn-guardar-propiedades-relacion"
         type="button"
         class="btn-modal btn-primario"
         (click)="onGuardar()"

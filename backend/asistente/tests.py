@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -373,3 +374,146 @@ class SeleccionProveedorTests(SimpleTestCase):
             'fallback_used': False,
             'duration_ms': 25,
         })
+
+
+class AyudaAsistenteTests(SimpleTestCase):
+    @patch.object(
+        GeminiProviderService,
+        'generar_contenido',
+        return_value=json.dumps({
+            "explicacion": "Para registrar un nuevo proyecto...",
+            "pasos": [
+                "1. Presiona el botón '+ Crear un nuevo proyecto'.",
+                "2. Escribe el nombre en el modal.",
+                "3. Presiona 'Crear proyecto'."
+            ],
+            "componente_id": "btn-crear-proyecto",
+            "requiere_cambio_vista": False,
+            "vista_destino": None
+        })
+    )
+    def test_ayuda_proceso_dashboard_exitoso(self, mock_gemini):
+        from .services import AyudaAsistenteService
+        res = AyudaAsistenteService.consultar_ayuda("¿Cómo creo un proyecto?", "dashboard")
+        self.assertEqual(res["componente_id"], "btn-crear-proyecto")
+        self.assertFalse(res["requiere_cambio_vista"])
+        self.assertEqual(len(res["pasos"]), 3)
+        self.assertIn("Para registrar un nuevo proyecto", res["explicacion"])
+
+    @patch.object(
+        GeminiProviderService,
+        'generar_contenido',
+        return_value=json.dumps({
+            "explicacion": "La generación de código Spring Boot se ejecuta dentro de la Pizarra.",
+            "pasos": [
+                "1. Abre un proyecto haciendo clic en 'Abrir →'.",
+                "2. En la pizarra, haz clic en 'Generación Java · Spring Boot'."
+            ],
+            "componente_id": "btn-abrir-proyecto",
+            "requiere_cambio_vista": True,
+            "vista_destino": "pizarra"
+        })
+    )
+    def test_ayuda_proceso_cambio_vista_pizarra(self, mock_gemini):
+        from .services import AyudaAsistenteService
+        res = AyudaAsistenteService.consultar_ayuda("¿Cómo genero backend Spring Boot?", "dashboard")
+        self.assertEqual(res["componente_id"], "btn-abrir-proyecto")
+        self.assertTrue(res["requiere_cambio_vista"])
+        self.assertEqual(res["vista_destino"], "pizarra")
+
+    def test_ayuda_consulta_vacia_lanza_error(self):
+        from .services import AyudaAsistenteService
+        with self.assertRaises(AsistenteServiceError) as ctx:
+            AyudaAsistenteService.consultar_ayuda("   ", "dashboard")
+        self.assertEqual(ctx.exception.codigo, "consulta_vacia")
+
+    @patch.object(
+        GeminiProviderService,
+        'generar_contenido',
+        return_value=json.dumps({
+            "explicacion": "El dashboard te permite administrar proyectos.",
+            "pasos": [],
+            "componente_id": "id-inexistente-inventado",
+            "requiere_cambio_vista": False,
+            "vista_destino": None
+        })
+    )
+    def test_ayuda_componente_invalido_se_limpia(self, mock_gemini):
+        from .services import AyudaAsistenteService
+        res = AyudaAsistenteService.consultar_ayuda("¿Qué es esto?", "dashboard")
+        self.assertIsNone(res["componente_id"])
+
+    def test_endpoint_consultar_ayuda_requiere_autenticacion(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        resp = client.post('/api/asistente/ayuda/', {'consulta': 'hola', 'interfaz': 'dashboard'}, format='json')
+        self.assertEqual(resp.status_code, 401)
+
+    @patch.object(
+        GeminiProviderService,
+        'generar_contenido',
+        return_value=json.dumps({
+            "explicacion": "Para crear una entidad en la pizarra, arrastra la tarjeta de Entidad al lienzo.",
+            "pasos": [
+                "1. Ubica el panel lateral izquierdo en la pestaña de Elementos.",
+                "2. Arrastra la tarjeta 'card-nueva-entidad' hacia la pizarra."
+            ],
+            "componente_id": "card-nueva-entidad",
+            "requiere_cambio_vista": False,
+            "vista_destino": None
+        })
+    )
+    def test_ayuda_proceso_pizarra_exitoso(self, mock_gemini):
+        from .services import AyudaAsistenteService
+        res = AyudaAsistenteService.consultar_ayuda("¿Cómo creo una entidad?", "pizarra")
+        self.assertEqual(res["componente_id"], "card-nueva-entidad")
+        self.assertFalse(res["requiere_cambio_vista"])
+        self.assertEqual(len(res["pasos"]), 2)
+        # Verifica que se hayan limpiado los prefijos numéricos de los pasos
+        self.assertFalse(res["pasos"][0].startswith("1."))
+        self.assertTrue(res["pasos"][0].startswith("Ubica el panel"))
+
+    @patch.object(
+        GeminiProviderService,
+        'generar_contenido',
+        return_value=json.dumps({
+            "explicacion": "Para volver al listado de proyectos debes salir al Dashboard.",
+            "pasos": [
+                "1. Haz clic en el botón 'Volver al Dashboard' en la parte inferior del panel lateral."
+            ],
+            "componente_id": "btn-volver-dashboard",
+            "requiere_cambio_vista": True,
+            "vista_destino": "dashboard"
+        })
+    )
+    def test_ayuda_pizarra_cambio_vista_dashboard(self, mock_gemini):
+        from .services import AyudaAsistenteService
+        res = AyudaAsistenteService.consultar_ayuda("¿Cómo vuelvo a mis proyectos?", "pizarra")
+        self.assertEqual(res["componente_id"], "btn-volver-dashboard")
+        self.assertTrue(res["requiere_cambio_vista"])
+        self.assertEqual(res["vista_destino"], "dashboard")
+
+    @patch.object(
+        GeminiProviderService,
+        'generar_contenido',
+        return_value=json.dumps({
+            "explicacion": "Para eliminar una entidad del diagrama, haz clic derecho sobre la figura para abrir el menú contextual y elige Eliminar.",
+            "pasos": [
+                "1. Haz clic derecho sobre la entidad en el lienzo.",
+                "2. Selecciona la opción 'Eliminar' en el menú contextual que aparece."
+            ],
+            "componente_id": "entidad-lienzo",
+            "requiere_cambio_vista": False,
+            "vista_destino": None
+        })
+    )
+    def test_ayuda_eliminar_entidad_ilumina_entidad_lienzo(self, mock_gemini):
+        from .services import AyudaAsistenteService
+        res = AyudaAsistenteService.consultar_ayuda("¿Cómo elimino una entidad?", "pizarra")
+        self.assertEqual(res["componente_id"], "entidad-lienzo")
+        self.assertFalse(res["requiere_cambio_vista"])
+        self.assertEqual(len(res["pasos"]), 2)
+
+
+
+

@@ -13,6 +13,7 @@
       <span class="menu-contextual-titulo" [title]="titulo">{{ titulo }}</span>
     </div>
     <button
+      id="btn-cerrar-contextual"
       type="button"
       class="btn-cerrar-contextual"
       (click)="onCancelar()"
@@ -25,6 +26,7 @@
   <div class="menu-contextual-acciones">
     <!-- Opción 1: Propiedades -->
     <button
+      id="btn-propiedades-contextual"
       type="button"
       class="accion-btn btn-propiedades"
       (click)="onPropiedades()"
@@ -45,6 +47,7 @@
 
     <!-- Opción 2: Agregar etiqueta o nombre de la relación (Solo para relaciones) -->
     <button
+      id="btn-etiqueta-contextual"
       *ngIf="tipo === 'relacion'"
       type="button"
       class="accion-btn btn-etiqueta"
@@ -64,6 +67,7 @@
 
     <!-- Opción 3: Eliminar (con expansión y confirmación en 2 pasos) -->
     <button
+      id="btn-eliminar-contextual"
       type="button"
       class="accion-btn btn-eliminar"
       [class.modo-confirmar]="confirmandoEliminar"

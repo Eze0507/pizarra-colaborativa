@@ -18,6 +18,7 @@
           </div>
         </div>
         <button 
+          id="btn-colapsar-sidebar"
           type="button" 
           class="btn-toggle-colapso" 
           (click)="toggleColapso()" 
@@ -32,7 +33,7 @@
 
       <!-- Nombre del Proyecto (Editable In-Place) -->
       <div class="proyecto-nombre-box">
-        <div *ngIf="!editandoNombre" class="nombre-display" (click)="iniciarEdicionNombre()" title="Clic para renombrar proyecto">
+        <div *ngIf="!editandoNombre" id="btn-renombrar-proyecto" class="nombre-display" (click)="iniciarEdicionNombre()" title="Clic para renombrar proyecto">
           <h2 class="proyecto-nombre-texto">{{ proyecto?.nombre || 'Proyecto sin título' }}</h2>
           <button type="button" class="btn-lapiz" aria-label="Renombrar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -44,6 +45,7 @@
 
         <div *ngIf="editandoNombre" class="nombre-editor">
           <input 
+            id="input-renombrar-proyecto"
             type="text" 
             [(ngModel)]="nombreProyectoInput"
             (keydown.enter)="confirmarRenombrado()"
@@ -100,6 +102,7 @@
         </div>
 
         <button 
+          id="btn-colaboradores-pizarra"
           type="button" 
           class="btn-colaboradores-header" 
           (click)="abrirColaboradores.emit()"
@@ -123,6 +126,7 @@
       <!-- Selector de Pestañas -->
       <div class="pestanas-nav">
         <button 
+          id="tab-elementos"
           type="button" 
           class="tab-btn" 
           [class.tab-activo]="pestanaActiva === 'toolbox'"
@@ -138,6 +142,7 @@
         </button>
 
         <button 
+          id="tab-boceto-ia"
           type="button" 
           class="tab-btn" 
           [class.tab-activo]="pestanaActiva === 'ia'"
@@ -163,6 +168,7 @@
           
           <!-- Elemento 1: Nueva Entidad -->
           <div 
+            id="card-nueva-entidad"
             class="toolbox-card card-entidad" 
             draggable="true"
             (dragstart)="onDragStart($event, 'entidad')"
@@ -200,12 +206,12 @@
           </div>
 
           <div class="validation-controls">
-            <select [(ngModel)]="perfilValidacion" aria-label="Perfil de validación">
+            <select id="select-perfil-validacion" [(ngModel)]="perfilValidacion" aria-label="Perfil de validación">
               <option value="uml">UML</option>
               <option value="java">Java</option>
               <option value="jpa">JPA</option>
             </select>
-            <button type="button" (click)="ejecutarValidacion()" [disabled]="!puedeValidar">
+            <button id="btn-ejecutar-validacion" type="button" (click)="ejecutarValidacion()" [disabled]="!puedeValidar">
               {{ validandoModelo ? 'Validando…' : 'Validar' }}
             </button>
           </div>
@@ -255,6 +261,7 @@
 
             <!-- Estado Sin Imagen: Dropzone -->
             <div
+              id="dropzone-boceto-ia"
               *ngIf="!archivoSeleccionado"
               class="ia-dropzone"
               [class.dropzone-activa]="arrastrandoArchivo"
@@ -281,6 +288,7 @@
               <div class="preview-img-container">
                 <img [src]="previsualizacionUrl" alt="Boceto cargado" class="preview-thumb" />
                 <button
+                  id="btn-eliminar-foto-boceto"
                   type="button"
                   class="btn-eliminar-foto"
                   (click)="limpiarImagen()"
@@ -329,6 +337,7 @@
 
           <!-- Botón de Acción Principal -->
           <button
+            id="btn-generar-diagrama-ia"
             type="button"
             class="btn-generar-ia"
             [disabled]="!archivoSeleccionado || cargandoIa"
@@ -348,6 +357,7 @@
     <footer class="sidebar-footer">
 
       <button
+        id="btn-descargar-spring-boot"
         type="button"
         class="btn-cta-estrella"
         (click)="generarCodigo.emit()"
@@ -368,6 +378,7 @@
       
       <!-- Botón Secundario: Exportar XML (Enterprise Architect) -->
       <button 
+        id="btn-exportar-xml"
         type="button" 
         class="btn-cta-secundario" 
         (click)="exportarXml.emit()"
@@ -389,6 +400,7 @@
         style="display: none;" 
       />
       <button 
+        id="btn-importar-xml"
         type="button" 
         class="btn-cta-secundario" 
         (click)="fileXmlInput.click()"
@@ -409,6 +421,7 @@
         
         <!-- Enlace Sutil al Dashboard -->
         <button 
+          id="btn-volver-dashboard"
           type="button" 
           class="btn-dashboard-sutil" 
           (click)="volverDashboard.emit()"
@@ -421,8 +434,25 @@
           <span>Dashboard</span>
         </button>
 
+        <!-- Botón Asistente de Ayuda (CU-14) -->
+        <button 
+          id="btn-ayuda-pizarra"
+          type="button" 
+          class="btn-util-icon" 
+          (click)="abrirAyudaPizarra()"
+          title="Asistente de Ayuda (Guía interactiva de la Pizarra)"
+          aria-label="Abrir asistente de ayuda"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </button>
+
         <!-- Toggle de Modo Oscuro Discreto -->
         <button 
+          id="btn-toggle-tema"
           type="button" 
           class="btn-util-icon" 
           (click)="toggleTema.emit()"
@@ -449,6 +479,7 @@
 
         <!-- Cerrar Sesión Discreto -->
         <button 
+          id="btn-cerrar-sesion-pizarra"
           type="button" 
           class="btn-util-icon btn-util-logout" 
           (click)="cerrarSesion.emit()"
@@ -476,6 +507,7 @@
       
       <!-- Botón Desplegar Sidebar -->
       <button 
+        id="btn-expandir-sidebar"
         type="button" 
         class="rail-toggle-btn" 
         (click)="toggleColapso()" 
@@ -558,6 +590,21 @@
             <circle cx="12" cy="12" r="5"></circle>
             <line x1="12" y1="1" x2="12" y2="3"></line>
             <line x1="12" y1="21" x2="12" y2="23"></line>
+          </svg>
+        </button>
+
+        <!-- Asistente de Ayuda Rail (CU-14) -->
+        <button 
+          type="button" 
+          class="rail-btn" 
+          (click)="abrirAyudaPizarra()" 
+          title="Asistente de Ayuda"
+          aria-label="Abrir asistente de ayuda"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
         </button>
 

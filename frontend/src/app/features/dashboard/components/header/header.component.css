@@ -71,6 +71,22 @@
   color: #2563eb;
 }
 
+.btn-ayuda:hover,
+.btn-ayuda.active {
+  color: #00a3ff;
+  border-color: rgba(0, 163, 255, 0.45);
+  background-color: rgba(0, 163, 255, 0.1);
+}
+
+.btn-ayuda.active {
+  box-shadow: 0 0 10px rgba(0, 163, 255, 0.35);
+}
+
+.icon-help {
+  width: 18px;
+  height: 18px;
+}
+
 .icon-bell {
   width: 18px;
   height: 18px;
