@@ -100,6 +100,11 @@ def plan_crud(
         )
 
     errors: list[dict[str, Any]] = []
+    all_attributes = {
+        attribute["id"]: attribute
+        for entity in entities.values()
+        for attribute in entity.get("attributes", ())
+    }
     planned: dict[int, dict[str, Any]] = {}
     generated_names: dict[str, tuple[int, str]] = {}
     classifier_names = {item["name"].casefold(): item["id"] for item in entities.values()}
@@ -107,8 +112,7 @@ def plan_crud(
 
     for entity_id, entity in persistent.items():
         jpa_entity = jpa_plan.entities[entity_id]
-        attributes = {item["id"]: item for item in entity.get("attributes", ())}
-        key = attributes[jpa_entity["key_attribute_id"]]
+        key = all_attributes[jpa_entity["key_attribute_id"]]
         id_type = JAVA_TYPE.get(key.get("type"))
         if options.get("servicio") and entity.get("abstract"):
             errors.append(_diagnostic(
@@ -123,7 +127,7 @@ def plan_crud(
             ))
             continue
 
-        basic = [attributes[item_id] for item_id in jpa_entity["basic_attribute_ids"]]
+        basic = [all_attributes[item_id] for item_id in jpa_entity["basic_attribute_ids"]]
         unsupported = [item for item in basic if item.get("type") not in JAVA_TYPE]
         for item in unsupported:
             errors.append(_diagnostic(

@@ -428,6 +428,11 @@ class JavaModelRenderer:
         }
         if jpa_entity:
             imports.add("jakarta.persistence.Entity")
+            if jpa_entity_plan.get("inheritance_root"):
+                imports.add("jakarta.persistence.Inheritance")
+                imports.add("jakarta.persistence.InheritanceType")
+            if jpa_entity_plan.get("inheritance_parent_id") is not None:
+                imports.add("jakarta.persistence.PrimaryKeyJoinColumn")
         for attribute in entity.get("attributes", ()):
             java_type = self._render_type(attribute, "type", "reference_id")
             if java_type == "LocalDate":
@@ -584,6 +589,16 @@ class JavaModelRenderer:
             lines.append("")
         if jpa_entity:
             lines.append("@Entity")
+            if jpa_entity_plan.get("inheritance_root"):
+                lines.append("@Inheritance(strategy = InheritanceType.JOINED)")
+            if jpa_entity_plan.get("inheritance_parent_id") is not None:
+                root_id = jpa_entity_plan.get("inheritance_root_id")
+                root_key_id = jpa_entity_plan.get("key_attribute_id")
+                root_key = next(
+                    item for item in self.entities[root_id].get("attributes", ())
+                    if item["id"] == root_key_id
+                )
+                lines.append(f'@PrimaryKeyJoinColumn(name = "{root_key["name"]}")')
         lines.append(f"{declaration} {entity['name']}{(' ' + ' '.join(suffix)) if suffix else ''} {{")
         if members:
             lines.append("")

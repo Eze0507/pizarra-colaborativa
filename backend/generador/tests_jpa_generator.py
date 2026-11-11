@@ -275,7 +275,7 @@ class JpaGenerationTests(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertIn("JPA_NON_PERSISTENT_RELATION_ENDPOINT", str(response.data))
 
-    def test_orphan_reference_collision_and_jpa_inheritance_are_rejected(self):
+    def test_orphan_reference_is_rejected_and_jpa_inheritance_uses_joined(self):
         source = self.entity("Pedido")
         target = self.entity("Cliente")
         Atributo.objects.create(
@@ -288,14 +288,28 @@ class JpaGenerationTests(TestCase):
 
         self.project.entidades.all().delete()
         parent = self.entity("Base")
-        child = self.entity("Derivada")
+        child = self.entity("Derivada", key_type=None)
+        Atributo.objects.create(
+            entidad=child, nombre="detalle", tipo="string", orden=1,
+        )
         Relacion.objects.create(
             proyecto=self.project, entidad_origen=child, entidad_destino=parent,
             tipo=Relacion.Tipo.HERENCIA,
         )
         response = self.generate()
-        self.assertEqual(response.status_code, 422)
-        self.assertIn("JPA_UNSUPPORTED_INHERITANCE", str(response.data))
+        self.assertEqual(response.status_code, 200)
+        with self.archive(response) as archive:
+            parent_source = archive.read(
+                "tienda/src/main/java/com/ejemplo/tienda/model/Base.java"
+            ).decode()
+            child_source = archive.read(
+                "tienda/src/main/java/com/ejemplo/tienda/model/Derivada.java"
+            ).decode()
+            manifest = json.loads(archive.read("tienda/nodoboard-generation.json"))
+        self.assertIn("@Inheritance(strategy = InheritanceType.JOINED)", parent_source)
+        self.assertIn('@PrimaryKeyJoinColumn(name = "id")', child_source)
+        self.assertIn("public class Derivada extends Base", child_source)
+        self.assertEqual(manifest["jpa_model"]["inheritance"], "joined")
 
     def test_relation_role_collision_is_rejected_without_renaming(self):
         source = self.entity("Pedido")

@@ -128,6 +128,34 @@ class CrudGenerationTests(TestCase):
         self.assertFalse(any("AuxiliarRepository" in name for name in names))
         self.assertFalse(any("/service/" in name for name in names))
 
+    def test_generates_four_layers_for_joined_inheritance(self):
+        vehicle = self.entity("Vehiculo", key_type="string")
+        vehicle.atributos.filter(nombre="id").update(nombre="placa")
+        car = self.entity("Auto", key_type="integer")
+        Atributo.objects.create(
+            entidad=car, nombre="pasajeros", tipo="integer", es_nulo=False, orden=2,
+        )
+        Relacion.objects.create(
+            proyecto=self.project, entidad_origen=car, entidad_destino=vehicle,
+            tipo=Relacion.Tipo.HERENCIA,
+        )
+
+        response = self.generate()
+
+        self.assertEqual(response.status_code, 200)
+        with self.archive(response) as archive:
+            names = set(archive.namelist())
+            prefix = "tienda/src/main/java/com/ejemplo/tienda"
+            parent = archive.read(f"{prefix}/model/Vehiculo.java").decode()
+            child = archive.read(f"{prefix}/model/Auto.java").decode()
+            repository = archive.read(f"{prefix}/repository/AutoRepository.java").decode()
+        self.assertIn("@Inheritance(strategy = InheritanceType.JOINED)", parent)
+        self.assertIn('@PrimaryKeyJoinColumn(name = "placa")', child)
+        self.assertIn("public class Auto extends Vehiculo", child)
+        self.assertIn("JpaRepository<Auto, String>", repository)
+        self.assertIn(f"{prefix}/service/AutoService.java", names)
+        self.assertIn(f"{prefix}/controller/AutoController.java", names)
+
     def test_controller_uses_portable_route_for_snake_case_entity(self):
         self.entity("compra_producto")
 

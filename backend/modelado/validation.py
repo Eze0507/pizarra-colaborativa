@@ -329,12 +329,35 @@ class UMLValidator:
 
     def _validate_jpa(self) -> None:
         persistent = {e["id"] for e in self.entities.values() if e.get("kind") == Entidad.TipoClasificador.ENTIDAD_PERSISTENTE}
+        inheritance_parent: dict[int, int] = {}
+        for relation in self.model.get("relations", []):
+            if relation.get("type") != Relacion.Tipo.HERENCIA:
+                continue
+            source_id, target_id = relation.get("source_id"), relation.get("target_id")
+            if source_id in persistent and target_id in persistent:
+                inheritance_parent[source_id] = target_id
+            elif source_id in persistent or target_id in persistent:
+                self.add(
+                    "JPA_NON_PERSISTENT_INHERITANCE_ENDPOINT", "error",
+                    "La herencia JPA requiere que padre e hijo sean entidades persistentes.",
+                    self._target("relacion", relation["id"]),
+                )
+
+        def root_entity_id(entity_id: int) -> int:
+            visited: set[int] = set()
+            current = entity_id
+            while current in inheritance_parent and current not in visited:
+                visited.add(current)
+                current = inheritance_parent[current]
+            return current
+
         for entity_id in persistent:
             entity = self.entities[entity_id]
-            keys = [a for a in entity.get("attributes", []) if a.get("is_key")]
+            identity_entity = self.entities[root_entity_id(entity_id)]
+            keys = [a for a in identity_entity.get("attributes", []) if a.get("is_key")]
             target = self._target("clasificador", entity_id)
             if not keys:
-                self.add("JPA_ENTITY_WITHOUT_ID", "error", "La entidad persistente no tiene atributo identificador.", target)
+                self.add("JPA_ENTITY_WITHOUT_ID", "error", "La raíz de la entidad persistente no tiene atributo identificador.", target)
             elif len(keys) > 1:
                 self.add("JPA_COMPOSITE_ID_UNSUPPORTED", "error", "El modelo no define una estrategia compatible para una clave compuesta.", target)
             elif keys[0].get("reference_id") is not None or keys[0].get("type") not in {"string", "integer", "long"}:
@@ -346,10 +369,7 @@ class UMLValidator:
                     self.add("JPA_UNPERSISTABLE_TYPE", "error", "El atributo no tiene un tipo persistible conocido.", self._target("atributo", attr["id"], clasificador_id=entity_id), "tipo")
         for relation in self.model.get("relations", []):
             target = self._target("relacion", relation["id"])
-            if relation.get("type") == Relacion.Tipo.HERENCIA and (
-                relation.get("source_id") in persistent or relation.get("target_id") in persistent
-            ):
-                self.add("JPA_UNSUPPORTED_INHERITANCE", "error", "7C no define una estrategia de herencia para entidades JPA.", target)
+            if relation.get("type") == Relacion.Tipo.HERENCIA:
                 continue
             try:
                 analyze_unidirectional_relation(self.entities, relation)

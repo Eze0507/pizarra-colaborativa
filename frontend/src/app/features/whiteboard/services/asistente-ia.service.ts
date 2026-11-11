@@ -62,6 +62,19 @@ const TIPOS_RELACION_VALIDOS: RelacionDiagrama['tipo'][] = [
 
 const REGEX_CARDINALIDAD = /^([0-9]+|\*|[0-9]+\.\.([0-9]+|\*))$/;
 
+// Palabras que Java 21 no permite usar como nombres de clases o miembros.
+// Tambien se incluyen los literales reservados y "_", reservado desde Java 9.
+const PALABRAS_RESERVADAS_JAVA = new Set([
+  '_', 'abstract', 'assert', 'boolean', 'break', 'byte', 'case', 'catch',
+  'char', 'class', 'const', 'continue', 'default', 'do', 'double', 'else',
+  'enum', 'extends', 'final', 'finally', 'float', 'for', 'goto', 'if',
+  'implements', 'import', 'instanceof', 'int', 'interface', 'long', 'native',
+  'new', 'package', 'private', 'protected', 'public', 'return', 'short',
+  'static', 'strictfp', 'super', 'switch', 'synchronized', 'this', 'throw',
+  'throws', 'transient', 'try', 'void', 'volatile', 'while', 'true', 'false',
+  'null', 'record', 'sealed', 'permits', 'non-sealed', 'var', 'yield'
+]);
+
 @Injectable({
   providedIn: 'root'
 })
@@ -327,6 +340,7 @@ export class AsistenteIaService {
     };
 
     // 2. Normalizar entidades
+    const nombresEntidadesUsados = new Set<string>();
     const entidadesNormalizadas: EntidadDiagrama[] = entidadesEntrantes.map(
       (ent: EntidadIARespuesta, index: number): EntidadDiagrama => {
         const idTemporal = resolverEntidadId(ent.id) ?? generarIdTemporal();
@@ -344,16 +358,24 @@ export class AsistenteIaService {
         }
 
         const atributosNormalizados = this.normalizarAtributos(ent.atributos || [], generarIdTemporal);
+        const nombreEntidadBase = this.normalizarIdentificadorJava(
+          ent.nombre,
+          `Entidad_${index + 1}`,
+          false
+        );
+        const nombreEntidad = this.hacerNombreUnico(nombreEntidadBase, nombresEntidadesUsados);
 
         return {
           id: idTemporal,
-          nombre: (ent.nombre || `Entidad_${index + 1}`).trim().replace(/\s+/g, '_'),
+          nombre: nombreEntidad,
           estado: 'activo',
           coord_x: coordX,
           coord_y: coordY,
           ancho: 200,
           es_intermedia: Boolean(ent.es_intermedia),
-          tipo_clasificador: 'clase',
+          // El boceto IA representa tablas/entidades de datos. Marcarlas como
+          // persistentes permite generar las capas JPA y CRUD de Spring Boot.
+          tipo_clasificador: 'entidad_persistente',
           abstracto: false,
           pos_x: ent.pos_x,
           pos_y: ent.pos_y,
@@ -511,6 +533,8 @@ export class AsistenteIaService {
             coord_y: Math.max(40, coordY),
             ancho: 200,
             es_intermedia: true,
+            tipo_clasificador: 'entidad_persistente',
+            abstracto: false,
             atributos: [
               {
                 id: generarIdTemporal(),
@@ -520,7 +544,8 @@ export class AsistenteIaService {
                 es_nulo: false,
                 orden: 1
               }
-            ]
+            ],
+            operaciones: []
           };
 
           entidadesNormalizadas.push(entIntermedia);
@@ -615,6 +640,20 @@ export class AsistenteIaService {
       }
     }
 
+    // En JPA JOINED la identidad se declara en la raíz y se hereda. Si el
+    // boceto marcó otra PK en una subclase, se conserva como atributo normal.
+    const idsSubclases = new Set(
+      relacionesNormalizadas
+        .filter(relacion => relacion.tipo === 'herencia')
+        .map(relacion => relacion.entidad_origen_id)
+    );
+    for (const entidad of entidadesNormalizadas) {
+      if (!idsSubclases.has(entidad.id)) continue;
+      for (const atributo of entidad.atributos || []) {
+        atributo.es_clave = false;
+      }
+    }
+
     return {
       entidades: entidadesNormalizadas,
       relaciones: relacionesNormalizadas
@@ -666,11 +705,17 @@ export class AsistenteIaService {
     generarIdTemporal: () => number
   ): AtributoDiagrama[] {
     const lista: AtributoDiagrama[] = [];
+    const nombresUsados = new Set<string>();
     let ordenActual = 1;
     let tieneClave = false;
 
     for (const attr of atributos) {
-      const nombreLimpio = (attr.nombre || `campo_${ordenActual}`).trim().replace(/^[-+~#]\s*/, '').replace(/\s+/g, '_').toLowerCase();
+      const nombreBase = this.normalizarIdentificadorJava(
+        attr.nombre,
+        `campo_${ordenActual}`,
+        true
+      );
+      const nombreLimpio = this.hacerNombreUnico(nombreBase, nombresUsados);
       const tipoLimpio = this.normalizarTipoAtributo(attr.tipo);
       const esClave = Boolean(attr.es_clave || nombreLimpio === 'id' || nombreLimpio === 'codigo');
       if (esClave) tieneClave = true;
@@ -700,6 +745,50 @@ export class AsistenteIaService {
     }
 
     return lista;
+  }
+
+  /**
+   * Convierte texto detectado en un boceto a un identificador Java 21 seguro.
+   * Esta correccion se aplica solo a contenido producido por la IA; la edicion
+   * manual conserva la validacion estricta y no se modifica automaticamente.
+   */
+  private normalizarIdentificadorJava(
+    valor: string | null | undefined,
+    respaldo: string,
+    convertirMinusculas: boolean
+  ): string {
+    let nombre = (valor || respaldo)
+      .trim()
+      .replace(/^[-+~#]\s*/, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9_$]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    if (convertirMinusculas) {
+      nombre = nombre.toLowerCase();
+    }
+    if (!nombre) {
+      nombre = respaldo;
+    }
+    if (!/^[A-Za-z_$]/.test(nombre)) {
+      nombre = `${convertirMinusculas ? 'campo' : 'Entidad'}_${nombre}`;
+    }
+    if (PALABRAS_RESERVADAS_JAVA.has(nombre)) {
+      nombre = `${convertirMinusculas ? 'campo' : 'Entidad'}_${nombre}`;
+    }
+    return nombre;
+  }
+
+  private hacerNombreUnico(nombreBase: string, nombresUsados: Set<string>): string {
+    let nombre = nombreBase;
+    let sufijo = 2;
+    while (nombresUsados.has(nombre.toLowerCase())) {
+      nombre = `${nombreBase}_${sufijo++}`;
+    }
+    nombresUsados.add(nombre.toLowerCase());
+    return nombre;
   }
 
   private normalizarTipoAtributo(tipoRaw?: string): AtributoDiagrama['tipo'] {

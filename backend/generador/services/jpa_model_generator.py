@@ -62,12 +62,49 @@ def plan_jpa_model(model: Mapping[str, Any]) -> JpaModelPlan:
         }))
 
     errors: list[dict[str, Any]] = []
+    inheritance_parent: dict[int, int] = {}
+    inheritance_roots_with_children: set[int] = set()
+    inheritance_relationships: list[dict[str, Any]] = []
+    for relation in sorted(model.get("relations", ()), key=lambda item: item["id"]):
+        if relation.get("type") != "herencia":
+            continue
+        source_id, target_id = relation.get("source_id"), relation.get("target_id")
+        if source_id in persistent and target_id in persistent:
+            inheritance_parent[source_id] = target_id
+            inheritance_roots_with_children.add(target_id)
+            inheritance_relationships.append({
+                "relation_id": relation["id"],
+                "child_id": source_id,
+                "parent_id": target_id,
+            })
+        elif source_id in persistent or target_id in persistent:
+            errors.append(_diagnostic(
+                "JPA_NON_PERSISTENT_INHERITANCE_ENDPOINT",
+                "La herencia JPA requiere que padre e hijo sean entidades persistentes.",
+                "relacion", relation["id"],
+            ))
+
+    def inheritance_chain(entity_id: int) -> list[int]:
+        chain = [entity_id]
+        visited = {entity_id}
+        while chain[-1] in inheritance_parent:
+            parent_id = inheritance_parent[chain[-1]]
+            if parent_id in visited:
+                break
+            visited.add(parent_id)
+            chain.append(parent_id)
+        chain.reverse()
+        return chain
+
     planned_entities: dict[int, dict[str, Any]] = {}
     for entity_id, entity in sorted(persistent.items()):
-        keys = [item for item in entity.get("attributes", ()) if item.get("is_key")]
+        chain = inheritance_chain(entity_id)
+        root_id = chain[0]
+        root = persistent[root_id]
+        keys = [item for item in root.get("attributes", ()) if item.get("is_key")]
         if len(keys) != 1:
             code = "JPA_ENTITY_WITHOUT_ID" if not keys else "JPA_COMPOSITE_ID_UNSUPPORTED"
-            errors.append(_diagnostic(code, "La entidad necesita exactamente una clave simple.", "clasificador", entity_id))
+            errors.append(_diagnostic(code, "La raíz de la jerarquía necesita exactamente una clave simple.", "clasificador", entity_id))
             continue
         key = keys[0]
         if key.get("reference_id") is not None or key.get("type") not in SUPPORTED_ID_TYPES:
@@ -84,8 +121,16 @@ def plan_jpa_model(model: Mapping[str, Any]) -> JpaModelPlan:
         planned_entities[entity_id] = {
             "entity_id": entity_id,
             "key_attribute_id": key["id"],
+            "inheritance_parent_id": inheritance_parent.get(entity_id),
+            "inheritance_root_id": root_id,
+            "inheritance_root": entity_id in inheritance_roots_with_children and entity_id not in inheritance_parent,
+            "declared_key_attribute_ids": tuple(
+                item["id"] for item in entity.get("attributes", ()) if item.get("is_key")
+            ),
             "basic_attribute_ids": tuple(
-                item["id"] for item in entity.get("attributes", ())
+                item["id"]
+                for current_id in chain
+                for item in persistent[current_id].get("attributes", ())
                 if item.get("reference_id") is None
             ),
         }
@@ -103,13 +148,7 @@ def plan_jpa_model(model: Mapping[str, Any]) -> JpaModelPlan:
     }
 
     for relation in sorted(model.get("relations", ()), key=lambda item: item["id"]):
-        if relation.get("type") == "herencia" and (
-            relation.get("source_id") in persistent or relation.get("target_id") in persistent
-        ):
-            errors.append(_diagnostic(
-                "JPA_UNSUPPORTED_INHERITANCE", "7C no soporta herencia entre entidades persistentes.",
-                "relacion", relation["id"],
-            ))
+        if relation.get("type") == "herencia":
             continue
         try:
             planned = analyze_unidirectional_relation(entities, relation)
@@ -192,6 +231,8 @@ def plan_jpa_model(model: Mapping[str, Any]) -> JpaModelPlan:
             "entity_id": entity_id,
             "key_attribute_id": data["key_attribute_id"],
             "basic_attribute_ids": list(data["basic_attribute_ids"]),
+            "inheritance_parent_id": data["inheritance_parent_id"],
+            "inheritance_root_id": data["inheritance_root_id"],
         }
         for entity_id, data in sorted(planned_entities.items())
     ]
@@ -203,11 +244,12 @@ def plan_jpa_model(model: Mapping[str, Any]) -> JpaModelPlan:
         "nullable_policy": "es_nulo_false_genera_nullable_false",
         "collection_policy": "java.util.List_sin_inicializacion",
         "bidirectional_relationships": False,
-        "inheritance": "no_soportada_en_7c",
+        "inheritance": "joined",
+        "inheritance_relationships": inheritance_relationships,
         "entities": entity_metadata,
         "relationships": relationships,
         "unmapped_relationships": unmapped,
-        "pending_capabilities": ["herencia_jpa", "relaciones_bidireccionales", "crud", "datasource"],
+        "pending_capabilities": ["relaciones_bidireccionales", "datasource"],
     }
     return JpaModelPlan(
         True,

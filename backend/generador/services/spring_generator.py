@@ -304,9 +304,11 @@ Se admiten claves simples `String`, `Integer` y `Long`, sin `@GeneratedValue`.
 
 Solo se generan relaciones unidireccionales con navegabilidad, rol y multiplicidades
 inequívocos. Las colecciones usan `List` sin inicialización; no se generan cascadas,
-`orphanRemoval`, `mappedBy` ni herencia JPA. Los nombres de tabla, columna y claves
-foráneas quedan a las convenciones de JPA. La prueba de contexto excluye el DataSource
-solo en el entorno de prueba; no valida Hibernate ni persistencia real.
+`orphanRemoval` ni `mappedBy`. Las jerarquías persistentes usan
+`@Inheritance(strategy = InheritanceType.JOINED)`: la raíz declara la clave y las
+subclases la comparten mediante `@PrimaryKeyJoinColumn`. Los nombres de tabla, columna
+y claves foráneas quedan a las convenciones de JPA. La prueba de contexto excluye el
+DataSource solo en el entorno de prueba; no valida una conexión PostgreSQL real.
 """ if jpa_active else ""
     postgresql_readme = f"""
 ## PostgreSQL
