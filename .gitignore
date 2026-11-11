@@ -40,6 +40,7 @@ frontend/src/app/features/whiteboard/services/*
 !frontend/src/app/features/whiteboard/services/diagram-history.service.ts
 !frontend/src/app/features/whiteboard/services/diagram-history.service.spec.ts
 !frontend/src/app/features/whiteboard/services/history-canvas.spec.ts
+!frontend/src/app/features/whiteboard/services/asistente-ia.service.spec.ts
 !frontend/src/app/features/whiteboard/utils/
 frontend/src/app/features/whiteboard/utils/*
 !frontend/src/app/features/whiteboard/utils/history-command.utils.ts

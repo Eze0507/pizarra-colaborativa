@@ -1,6 +1,6 @@
 import json
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 from django.contrib.auth.models import User
@@ -19,6 +19,7 @@ from .services.agente_senior_service import (
     AgenteSeniorService,
     ResultadoAgenteSenior,
     SYSTEM_PROMPT_AGENTE_SENIOR,
+    SYSTEM_PROMPT_AGENTE_SENIOR_SOCIAL,
     TipoConsultaAgenteSenior,
 )
 
@@ -70,6 +71,12 @@ class ContextoInstruccionAsistenteTests(SimpleTestCase):
 
 @override_settings(GEMINI_API_KEY='test-key', GEMINI_MODEL='gemini-principal')
 class GeminiProviderServiceTests(SimpleTestCase):
+    def setUp(self):
+        GeminiProviderService._ultimo_modelo_exitoso = None
+
+    def tearDown(self):
+        GeminiProviderService._ultimo_modelo_exitoso = None
+
     @patch.object(
         GeminiProviderService,
         'obtener_modelos_candidatos',
@@ -103,6 +110,7 @@ class GeminiProviderServiceTests(SimpleTestCase):
         self.assertEqual(generar.call_count, 2)
         contenidos = generar.call_args.kwargs['contents']
         self.assertEqual([contenido.role for contenido in contenidos], ['user', 'model', 'user'])
+
 
     @patch.object(
         GeminiProviderService,
@@ -150,6 +158,57 @@ class GeminiProviderServiceTests(SimpleTestCase):
         )
 
         self.assertEqual(resultado['model'], 'gemini-secundario')
+
+    def test_prioriza_modelo_indicado_y_luego_recuerda_el_exitoso(self):
+        candidatos = GeminiProviderService.obtener_modelos_candidatos('gemini-social')
+        self.assertEqual(candidatos[0], 'gemini-social')
+
+        GeminiProviderService._ultimo_modelo_exitoso = 'gemini-rapido'
+        candidatos_siguientes = GeminiProviderService.obtener_modelos_candidatos()
+        self.assertEqual(candidatos_siguientes[0], 'gemini-rapido')
+
+    def test_perfil_rapido_omite_modelos_que_agotan_el_timeout(self):
+        candidatos = GeminiProviderService.obtener_modelos_candidatos(
+            'gemini-3.6-flash',
+            solo_modelos_rapidos=True,
+        )
+
+        self.assertEqual(candidatos[0], 'gemini-3.6-flash')
+        self.assertIn('gemini-3.5-flash-lite', candidatos)
+        self.assertNotIn('gemini-3.8-flash', candidatos)
+        self.assertNotIn('gemini-3.7-flash', candidatos)
+
+
+@override_settings(
+    OLLAMA_MODEL='qwen2.5:3b',
+    OLLAMA_NUM_CTX=4096,
+    OLLAMA_NUM_PREDICT=384,
+    OLLAMA_NUM_THREAD=2,
+    OLLAMA_KEEP_ALIVE='30m',
+)
+class OllamaProviderServiceTests(SimpleTestCase):
+    @patch.object(OllamaProviderService, 'detectar_url_activa', return_value='http://ollama:11434')
+    @patch('asistente.services.urllib.request.urlopen')
+    def test_envia_configuracion_optimizada_para_dos_vcpu(self, urlopen_mock, _detectar_mock):
+        respuesta = MagicMock()
+        respuesta.__iter__.return_value = iter([
+            b'{"message":{"content":"respuesta"},"done":true}\n'
+        ])
+        urlopen_mock.return_value.__enter__.return_value = respuesta
+
+        texto = OllamaProviderService.generar_contenido(
+            prompt='consulta técnica',
+            system_instruction='sistema',
+        )
+
+        request = urlopen_mock.call_args.args[0]
+        payload = json.loads(request.data.decode('utf-8'))
+        self.assertEqual(texto, 'respuesta')
+        self.assertEqual(payload['model'], 'qwen2.5:3b')
+        self.assertEqual(payload['keep_alive'], '30m')
+        self.assertEqual(payload['options']['num_ctx'], 4096)
+        self.assertEqual(payload['options']['num_predict'], 384)
+        self.assertEqual(payload['options']['num_thread'], 2)
 
 
 class ContextoGeminiTests(TestCase):
@@ -207,6 +266,22 @@ class ContextoGeminiTests(TestCase):
         self.assertTrue(contexto['incluye_diagrama'])
         self.assertIn('diagrama_uml', contexto['turnos'][-1]['content'])
         self.assertIn('Cliente', contexto['turnos'][-1]['content'])
+
+    def test_prompt_local_conceptual_no_serializa_el_diagrama(self):
+        actual = self.crear_mensaje(
+            '¿qué es una composición UML?',
+            estado=Mensaje.Estado.PROCESANDO,
+        )
+
+        prompt = AgenteSeniorService.construir_prompt_con_contexto(
+            self.proyecto.id,
+            self.conversacion.id,
+            actual,
+            compacto_para_local=True,
+        )
+
+        self.assertNotIn('Cliente', prompt)
+        self.assertIn('¿qué es una composición UML?', prompt)
 
     def test_seguimiento_conceptual_conserva_turnos_sin_diagrama(self):
         pregunta = self.crear_mensaje('¿qué es una composición UML?')
@@ -266,7 +341,7 @@ class SeleccionProveedorTests(SimpleTestCase):
         ollama_mock,
         _modelo_mock,
     ):
-        mensaje = SimpleNamespace(id=7)
+        mensaje = SimpleNamespace(id=7, contenido='revisa mi diagrama')
 
         resultado = AgenteSeniorService._generar_respuesta_agente_senior(
             proyecto_id=1,
@@ -291,6 +366,69 @@ class SeleccionProveedorTests(SimpleTestCase):
         self.assertEqual(ollama_mock.call_args.kwargs['temperature'], 0.3)
         self.assertEqual(resultado.provider, 'ollama')
         self.assertFalse(resultado.fallback_used)
+
+    @patch.object(OllamaProviderService, 'generar_contenido', return_value='saludo generado por Ollama')
+    @patch.object(GeminiProviderService, 'generar_chat_con_metadatos')
+    def test_saludo_local_lo_genera_ollama_con_prompt_minimo(self, gemini_mock, ollama_mock):
+        mensaje = SimpleNamespace(
+            id=10,
+            contenido='hola',
+            usuario=SimpleNamespace(first_name='Juan', username='juan'),
+        )
+
+        resultado = AgenteSeniorService._generar_respuesta_agente_senior(
+            proyecto_id=1,
+            conversacion_id=2,
+            mensaje_pregunta=mensaje,
+            usar_ia_local=True,
+        )
+
+        gemini_mock.assert_not_called()
+        ollama_mock.assert_called_once()
+        self.assertEqual(resultado.provider, 'ollama')
+        self.assertEqual(resultado.text, 'saludo generado por Ollama')
+        self.assertIn('Juan', ollama_mock.call_args.kwargs['prompt'])
+        self.assertIn('hola', ollama_mock.call_args.kwargs['prompt'])
+        self.assertNotIn('diagrama_uml', ollama_mock.call_args.kwargs['prompt'])
+        self.assertEqual(
+            ollama_mock.call_args.kwargs['system_instruction'],
+            SYSTEM_PROMPT_AGENTE_SENIOR_SOCIAL,
+        )
+
+    @patch.object(OllamaProviderService, 'generar_contenido')
+    @patch.object(
+        GeminiProviderService,
+        'generar_chat_con_metadatos',
+        return_value={'text': 'saludo generado por Gemini', 'model': 'gemini-test'},
+    )
+    @patch.object(
+        AgenteSeniorService,
+        'construir_contexto_gemini',
+        return_value={'turnos': [{'role': 'user', 'content': 'hola'}]},
+    )
+    @override_settings(GEMINI_SOCIAL_MODEL='gemini-social-rapido')
+    def test_saludo_en_modo_nube_lo_genera_gemini(
+        self,
+        _contexto_mock,
+        gemini_mock,
+        ollama_mock,
+    ):
+        resultado = AgenteSeniorService._generar_respuesta_agente_senior(
+            proyecto_id=1,
+            conversacion_id=2,
+            mensaje_pregunta=SimpleNamespace(id=11, contenido='hola'),
+            usar_ia_local=False,
+        )
+
+        gemini_mock.assert_called_once()
+        self.assertEqual(
+            gemini_mock.call_args.kwargs['modelo_preferido'],
+            'gemini-social-rapido',
+        )
+        self.assertTrue(gemini_mock.call_args.kwargs['solo_modelos_rapidos'])
+        ollama_mock.assert_not_called()
+        self.assertEqual(resultado.provider, 'gemini')
+        self.assertEqual(resultado.text, 'saludo generado por Gemini')
 
     @patch.object(OllamaProviderService, 'obtener_modelo_local', return_value='qwen-test')
     @patch.object(OllamaProviderService, 'generar_contenido', return_value='respuesta de respaldo')

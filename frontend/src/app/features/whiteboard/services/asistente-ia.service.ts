@@ -296,11 +296,14 @@ export class AsistenteIaService {
     const mapaEntidadesPorNombre = new Map<string, number>();
     const baseTiempo = Date.now() % 1000000000;
     let contadorSecuencia = 1;
+    // Una sola secuencia para todo el payload evita que entidades distintas
+    // reutilicen IDs de atributos al ser normalizadas en el mismo milisegundo.
+    const generarIdTemporal = (): number => -(baseTiempo * 1000000 + contadorSecuencia++);
 
     // 1. Mapear identificadores de entidades entrantes a IDs temporales de cliente
     for (let i = 0; i < entidadesEntrantes.length; i++) {
       const ent = entidadesEntrantes[i];
-      const idTemporal = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
+      const idTemporal = generarIdTemporal();
       if (ent.id !== undefined && ent.id !== null) {
         mapaIds.set(ent.id, idTemporal);
         mapaIds.set(String(ent.id), idTemporal);
@@ -326,7 +329,7 @@ export class AsistenteIaService {
     // 2. Normalizar entidades
     const entidadesNormalizadas: EntidadDiagrama[] = entidadesEntrantes.map(
       (ent: EntidadIARespuesta, index: number): EntidadDiagrama => {
-        const idTemporal = resolverEntidadId(ent.id) ?? -(baseTiempo * 100 + (contadorSecuencia++ % 100));
+        const idTemporal = resolverEntidadId(ent.id) ?? generarIdTemporal();
 
         let coordX: number;
         let coordY: number;
@@ -340,7 +343,7 @@ export class AsistenteIaService {
           coordY = Math.round(centroY + index * 60);
         }
 
-        const atributosNormalizados = this.normalizarAtributos(ent.atributos || []);
+        const atributosNormalizados = this.normalizarAtributos(ent.atributos || [], generarIdTemporal);
 
         return {
           id: idTemporal,
@@ -420,7 +423,7 @@ export class AsistenteIaService {
             }
           }
 
-          const idRelTemp = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
+          const idRelTemp = generarIdTemporal();
           const puertos = this.calcularPuertosRelacion(tempIdA, tempIdB, entidadesMap, conteoPares);
 
           const origConn1 = resolverEntidadId(conn1.rel.entidad_origen_id);
@@ -458,7 +461,7 @@ export class AsistenteIaService {
 
       if (origIdReal === null || destIdReal === null) continue;
 
-      const idRelTemporal = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
+      const idRelTemporal = generarIdTemporal();
       let tipoRelacion = this.normalizarTipoRelacion(rel.tipo);
       let cardOrigen = this.normalizarCardinalidad(rel.cardinalidad_origen, '');
       let cardDestino = this.normalizarCardinalidad(rel.cardinalidad_destino, '');
@@ -496,7 +499,7 @@ export class AsistenteIaService {
           const nomDest = (entDest?.nombre || 'destino').toLowerCase().trim().replace(/\s+/g, '_');
           const nombreIntermedio = `${nomOrig}_${nomDest}`;
 
-          const idIntermedio = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
+          const idIntermedio = generarIdTemporal();
           const coordX = entOrig && entDest ? Math.round((entOrig.coord_x + entDest.coord_x) / 2) : centroX;
           const coordY = entOrig && entDest ? Math.round(Math.min(entOrig.coord_y, entDest.coord_y) - 100) : centroY;
 
@@ -510,7 +513,7 @@ export class AsistenteIaService {
             es_intermedia: true,
             atributos: [
               {
-                id: -(baseTiempo * 100 + (contadorSecuencia++ % 100)),
+                id: generarIdTemporal(),
                 nombre: 'id',
                 tipo: 'integer',
                 es_clave: true,
@@ -590,7 +593,7 @@ export class AsistenteIaService {
             intermediasEnlazadas.add(entHuerfana.id);
           } else {
             // Crear la relación faltante entre A y B con la clase de asociación
-            const idRelTemp = -(baseTiempo * 100 + (contadorSecuencia++ % 100));
+            const idRelTemp = generarIdTemporal();
             const puertos = this.calcularPuertosRelacion(idA, idB, entidadesMap, conteoPares);
             relacionesNormalizadas.push({
               id: idRelTemp,
@@ -658,9 +661,11 @@ export class AsistenteIaService {
     }
   }
 
-  private normalizarAtributos(atributos: AtributoIARespuesta[]): AtributoDiagrama[] {
+  private normalizarAtributos(
+    atributos: AtributoIARespuesta[],
+    generarIdTemporal: () => number
+  ): AtributoDiagrama[] {
     const lista: AtributoDiagrama[] = [];
-    const baseTiempo = Date.now() % 10000000;
     let ordenActual = 1;
     let tieneClave = false;
 
@@ -671,7 +676,7 @@ export class AsistenteIaService {
       if (esClave) tieneClave = true;
 
       lista.push({
-        id: -(baseTiempo * 100 + ordenActual),
+        id: generarIdTemporal(),
         nombre: nombreLimpio,
         tipo: tipoLimpio,
         es_clave: esClave,
@@ -683,7 +688,7 @@ export class AsistenteIaService {
     // Si la entidad no tiene clave primaria identificada, se añade por defecto id: integer [pk]
     if (!tieneClave) {
       lista.unshift({
-        id: -(baseTiempo * 100),
+        id: generarIdTemporal(),
         nombre: 'id',
         tipo: 'integer',
         es_clave: true,

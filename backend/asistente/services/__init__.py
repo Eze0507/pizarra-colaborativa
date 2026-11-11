@@ -113,6 +113,9 @@ class OllamaProviderService:
             )
 
         endpoint = f"{base_url}/api/chat"
+        num_ctx = int(getattr(settings, 'OLLAMA_NUM_CTX', 4096))
+        num_predict = int(getattr(settings, 'OLLAMA_NUM_PREDICT', 384))
+        num_thread = int(getattr(settings, 'OLLAMA_NUM_THREAD', 2))
         payload = {
             "model": modelo_efectivo,
             "messages": [
@@ -120,10 +123,12 @@ class OllamaProviderService:
                 {"role": "user", "content": prompt},
             ],
             "stream": True,
+            "keep_alive": getattr(settings, 'OLLAMA_KEEP_ALIVE', '30m'),
             "options": {
                 "temperature": temperature,
-                "num_ctx": 4096,
-                "num_predict": 700,
+                "num_ctx": max(1024, num_ctx),
+                "num_predict": max(64, num_predict),
+                "num_thread": max(1, num_thread),
             },
         }
         body_bytes = json.dumps(payload).encode('utf-8')
@@ -188,6 +193,8 @@ class GeminiProviderService:
 
     # Timeout por intento de modelo en milisegundos (40 segundos para evitar 504 DEADLINE_EXCEEDED prematuro)
     TIMEOUT_MODELO_MS = 40000
+    # Memoria por proceso: evita volver a comenzar con modelos que ya fallaron.
+    _ultimo_modelo_exitoso: str | None = None
 
     @staticmethod
     def obtener_api_key() -> str:
@@ -200,24 +207,44 @@ class GeminiProviderService:
             )
         return api_key
 
-    @staticmethod
-    def obtener_modelos_candidatos() -> list[str]:
+    @classmethod
+    def obtener_modelos_candidatos(
+        cls,
+        modelo_preferido: str | None = None,
+        solo_modelos_rapidos: bool = False,
+    ) -> list[str]:
         modelo_principal = getattr(settings, 'GEMINI_MODEL', 'gemini-3.8-flash')
-        candidatos = [
-            modelo_principal,
-            'gemini-3.7-flash',
-            'gemini-3.6-flash',
-            'gemini-3.5-flash',
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-            'gemini-flash-lite-latest',
-            'gemini-flash-latest',
-        ]
+        if solo_modelos_rapidos:
+            # En conversación social importa más responder pronto que agotar
+            # modelos que suelen consumir todo el timeout antes de fallar.
+            candidatos = [
+                modelo_preferido,
+                'gemini-3.5-flash-lite',
+                'gemini-3.1-flash-lite',
+                'gemini-flash-lite-latest',
+            ]
+        else:
+            candidatos = [
+                modelo_preferido,
+                cls._ultimo_modelo_exitoso,
+                modelo_principal,
+                'gemini-3.7-flash',
+                'gemini-3.6-flash',
+                'gemini-3.5-flash',
+                'gemini-3.5-flash-lite',
+                'gemini-3.1-flash-lite',
+                'gemini-flash-lite-latest',
+                'gemini-flash-latest',
+            ]
         modelos_a_probar = []
         for m in candidatos:
             if m and m not in modelos_a_probar:
                 modelos_a_probar.append(m)
         return modelos_a_probar
+
+    @staticmethod
+    def obtener_modelo_social() -> str:
+        return getattr(settings, 'GEMINI_SOCIAL_MODEL', 'gemini-3.6-flash')
 
     @classmethod
     def generar_contenido(
@@ -250,6 +277,7 @@ class GeminiProviderService:
                     config=types.GenerateContentConfig(**config_kwargs)
                 )
                 if response and response.text:
+                    cls._ultimo_modelo_exitoso = modelo
                     return response.text.strip()
             except ServerError as se:
                 time.sleep(0.4)
@@ -273,7 +301,9 @@ class GeminiProviderService:
         cls,
         turnos: list[dict],
         system_instruction: str,
-        temperature: float = 0.2
+        temperature: float = 0.2,
+        modelo_preferido: str | None = None,
+        solo_modelos_rapidos: bool = False,
     ) -> dict:
         """
         Ejecuta una conversación del Agente Senior conservando el modelo Gemini
@@ -308,7 +338,13 @@ class GeminiProviderService:
 
         inicio_total = time.perf_counter()
         intentos = []
-        for numero_intento, modelo in enumerate(cls.obtener_modelos_candidatos(), start=1):
+        for numero_intento, modelo in enumerate(
+            cls.obtener_modelos_candidatos(
+                modelo_preferido,
+                solo_modelos_rapidos=solo_modelos_rapidos,
+            ),
+            start=1,
+        ):
             inicio_intento = time.perf_counter()
             try:
                 logger.info(
@@ -324,11 +360,19 @@ class GeminiProviderService:
                 texto = (getattr(response, 'text', None) or '').strip()
                 duracion_intento_ms = round((time.perf_counter() - inicio_intento) * 1000)
                 if texto:
+                    if not solo_modelos_rapidos:
+                        cls._ultimo_modelo_exitoso = modelo
                     intentos.append({
                         "model": modelo,
                         "status": "success",
                         "duration_ms": duracion_intento_ms,
                     })
+                    logger.info(
+                        "[GEMINI_AGENTE_SENIOR] Respuesta de '%s' en %sms (%s chars).",
+                        modelo,
+                        duracion_intento_ms,
+                        len(texto),
+                    )
                     return {
                         "text": texto,
                         "provider": "gemini",

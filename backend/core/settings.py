@@ -208,10 +208,16 @@ CHANNEL_LAYERS = {
 # Google Gemini AI Assistant
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
+# Los saludos usan un modelo rápido y estable, pero siguen siendo generados por IA.
+GEMINI_SOCIAL_MODEL = os.environ.get('GEMINI_SOCIAL_MODEL', 'gemini-3.6-flash')
 
 # Ollama Local AI Assistant (Motor local para Agente Senior)
 OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'qwen2.5:3b')
+OLLAMA_NUM_CTX = int(os.environ.get('OLLAMA_NUM_CTX', '4096'))
+OLLAMA_NUM_PREDICT = int(os.environ.get('OLLAMA_NUM_PREDICT', '384'))
+OLLAMA_NUM_THREAD = int(os.environ.get('OLLAMA_NUM_THREAD', '2'))
+OLLAMA_KEEP_ALIVE = os.environ.get('OLLAMA_KEEP_ALIVE', '30m')
 
 # URL base del frontend para enlaces en correos (activación, invitaciones)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', '')

@@ -68,6 +68,12 @@ En esta herramienta CASE los tipos válidos para atributos son string, integer, 
 """
 
 
+SYSTEM_PROMPT_AGENTE_SENIOR_SOCIAL = """Eres el Agente Senior de una herramienta CASE colaborativa.
+Responde al saludo, agradecimiento o despedida de manera natural, cordial y breve, en el idioma del usuario.
+No analices el diagrama ni inventes información técnica si el usuario no la solicitó.
+La respuesta debe ser generada por ti y tener como máximo dos frases."""
+
+
 class TipoConsultaAgenteSenior(str, Enum):
     SOCIAL = "SOCIAL"
     GENERAL_UML = "GENERAL_UML"
@@ -693,16 +699,15 @@ class AgenteSeniorService:
                 f"[AGENTE_SENIOR] Modo 'IA local' activado para consulta #{mensaje_pregunta.id} "
                 f"(proyecto #{proyecto_id}). Procesando directamente con el agente local (Ollama)..."
             )
-            prompt_local = cls.construir_prompt_con_contexto(
+            prompt_local, instruccion_local = cls._construir_solicitud_ollama(
                 proyecto_id=proyecto_id,
                 conversacion_id=conversacion_id,
                 mensaje_pregunta=mensaje_pregunta,
-                compacto_para_local=True
             )
             inicio_total = time.perf_counter()
             texto_local = OllamaProviderService.generar_contenido(
                 prompt=prompt_local,
-                system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
+                system_instruction=instruccion_local,
                 temperature=0.3
             )
             return ResultadoAgenteSenior(
@@ -722,10 +727,21 @@ class AgenteSeniorService:
         )
         inicio_total = time.perf_counter()
         try:
+            tipo_consulta = cls.clasificar_consulta(
+                str(getattr(mensaje_pregunta, 'contenido', '') or '')
+            )
+            modelo_preferido = (
+                GeminiProviderService.obtener_modelo_social()
+                if tipo_consulta == TipoConsultaAgenteSenior.SOCIAL
+                else None
+            )
+            consulta_social = tipo_consulta == TipoConsultaAgenteSenior.SOCIAL
             resultado_gemini = GeminiProviderService.generar_chat_con_metadatos(
                 turnos=contexto_gemini["turnos"],
                 system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR_GEMINI,
-                temperature=0.3
+                temperature=0.3,
+                modelo_preferido=modelo_preferido,
+                solo_modelos_rapidos=consulta_social,
             )
             return ResultadoAgenteSenior(
                 text=resultado_gemini["text"],
@@ -740,15 +756,14 @@ class AgenteSeniorService:
                 "Se utilizará Ollama como respaldo.",
                 gemini_exc.codigo,
             )
-            prompt_local = cls.construir_prompt_con_contexto(
+            prompt_local, instruccion_local = cls._construir_solicitud_ollama(
                 proyecto_id=proyecto_id,
                 conversacion_id=conversacion_id,
                 mensaje_pregunta=mensaje_pregunta,
-                compacto_para_local=True
             )
             texto_local = OllamaProviderService.generar_contenido(
                 prompt=prompt_local,
-                system_instruction=SYSTEM_PROMPT_AGENTE_SENIOR,
+                system_instruction=instruccion_local,
                 temperature=0.3
             )
             return ResultadoAgenteSenior(
@@ -758,6 +773,32 @@ class AgenteSeniorService:
                 fallback_used=True,
                 duration_ms=round((time.perf_counter() - inicio_total) * 1000),
             )
+
+    @classmethod
+    def _construir_solicitud_ollama(
+        cls,
+        proyecto_id: int,
+        conversacion_id: int,
+        mensaje_pregunta: Mensaje,
+    ) -> tuple[str, str]:
+        """Usa un prompt mínimo para conversación social y contexto UML para lo técnico."""
+        contenido = str(getattr(mensaje_pregunta, 'contenido', '') or '').strip()
+        if cls.clasificar_consulta(contenido) == TipoConsultaAgenteSenior.SOCIAL:
+            usuario = getattr(mensaje_pregunta, 'usuario', None)
+            nombre = (
+                (getattr(usuario, 'first_name', '') or '').strip()
+                or (getattr(usuario, 'username', '') or '').strip()
+                or 'Usuario'
+            )
+            prompt = f"Nombre del usuario: {nombre}\nMensaje del usuario: {contenido}\nResponde brevemente:"
+            return prompt, SYSTEM_PROMPT_AGENTE_SENIOR_SOCIAL
+
+        return cls.construir_prompt_con_contexto(
+            proyecto_id=proyecto_id,
+            conversacion_id=conversacion_id,
+            mensaje_pregunta=mensaje_pregunta,
+            compacto_para_local=True,
+        ), SYSTEM_PROMPT_AGENTE_SENIOR
 
     @staticmethod
     def _normalizar_texto_clasificacion(texto: str) -> str:
@@ -1040,8 +1081,16 @@ class AgenteSeniorService:
                     "rol": "Colaborador",
                 })
 
-        # 3. Información del diagrama: entidades, atributos y relaciones
-        info_diagrama = cls._recopilar_contexto_diagrama(proyecto)
+        # 3. El diagrama sólo aporta valor cuando la consulta depende de él.
+        tipo_consulta = cls.clasificar_consulta(mensaje_pregunta.contenido)
+        incluir_diagrama = tipo_consulta in {
+            TipoConsultaAgenteSenior.DIAGRAM_SPECIFIC,
+            TipoConsultaAgenteSenior.FOLLOW_UP,
+        }
+        info_diagrama = cls._recopilar_contexto_diagrama(proyecto) if incluir_diagrama else {
+            "entidades": [],
+            "relaciones": [],
+        }
         if compacto_para_local:
             entidades_compactas = []
             for ent in info_diagrama.get("entidades", []):
