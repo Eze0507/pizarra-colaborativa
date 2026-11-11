@@ -58,7 +58,7 @@ export class WhiteboardEntityService {
     const PADDING_HORIZONTAL = 36;
 
     const tieneNombre = entidad.nombre && entidad.nombre.trim().length > 0;
-    const estereotipo = entidad.tipo_clasificador === 'interfaz' ? '«interface» ' : entidad.tipo_clasificador === 'entidad_persistente' ? '«entity» ' : '';
+    const estereotipo = entidad.tipo_clasificador === 'interfaz' ? '«interface» ' : '';
     const textoNombre = estereotipo + (tieneNombre ? entidad.nombre.trim() : '— nombre entidad —');
     const anchoNombre = this.medirAnchoTexto(textoNombre, '700 13px "JetBrains Mono", monospace') + PADDING_HORIZONTAL + 20;
 
@@ -239,7 +239,7 @@ function generarGruposPuertos(tema: TemaColores) {
     celda.resize(ancho, alto);
 
     const tieneNombre = entidad.nombre && entidad.nombre.trim().length > 0;
-    const estereotipoVisual = entidad.tipo_clasificador === 'interfaz' ? '«interface» ' : entidad.tipo_clasificador === 'entidad_persistente' ? '«entity» ' : '';
+    const estereotipoVisual = entidad.tipo_clasificador === 'interfaz' ? '«interface» ' : '';
     const textoNombre = estereotipoVisual + (tieneNombre ? entidad.nombre.trim() : '— nombre entidad —');
     const colorNombre = tieneNombre ? tema.headerTexto : 'rgba(128,128,128,0.5)';
 
